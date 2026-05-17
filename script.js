@@ -1261,21 +1261,24 @@ function renderProfile(userId = null) {
 function renderMyAnnounceCard(a) {
     const imageStyle = a.imageUrl ? `background-image:url(${a.imageUrl}); background-size:cover;` : '';
     const premiumClass = a.sellerPremium ? 'premium-card' : '';
+    const isOwnerOrAdmin = a.sellerId === currentUser.id || currentUser.is_admin;
 
     return `
     <div class="card ${premiumClass}">
-        <div class="card-image ${a.rarityClass}" style="${imageStyle}">
+        <div class="card-image ${a.rarityClass}" style="${imageStyle} cursor:pointer;" onclick="navigate('detail', ${a.id})">
             ${!a.imageUrl ? `<span class="item-emoji">${a.imageEmoji}</span>` : ''}
             <span class="card-rarity rarity-${a.rarityClass}">${a.rarity}</span>
         </div>
         <div class="card-body">
             <div class="card-game">${a.gameName}</div>
-            <div class="card-title">${a.title}</div>
-            <div style="font-size:0.8rem;color:var(--white-50);margin-top:8px;">Modifications : ${a.editCount || 0}/2</div>
+            <div class="card-title" style="cursor:pointer;" onclick="navigate('detail', ${a.id})">${a.title}</div>
+            ${isOwnerOrAdmin ? `<div style="font-size:0.8rem;color:var(--white-50);margin-top:8px;">Modifications : ${a.editCount || 0}/2</div>` : ''}
+            ${isOwnerOrAdmin ? `
             <div class="card-footer" style="margin-top:16px;">
                 <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="editMyAnnounce(${a.id})">✏️ Modifier</button>
                 <button class="btn btn-ghost btn-sm" style="flex:1;color:var(--danger);" onclick="deleteMyAnnounce(${a.id})">🗑️ Supprimer</button>
             </div>
+            ` : ''}
         </div>
     </div>
     `;
@@ -1284,6 +1287,10 @@ function renderMyAnnounceCard(a) {
 async function editMyAnnounce(id) {
     const a = announces.find(ann => ann.id === id);
     if (!a) return;
+    if (a.sellerId !== currentUser.id && !currentUser.is_admin) {
+        showToast('❌ Vous n\'êtes pas autorisé à modifier cette annonce.');
+        return;
+    }
     if ((a.editCount || 0) >= 2) return showToast('⚠️ Limite de modifications atteinte (2/2)');
 
     const newDesc = prompt('Nouvelle description :', a.description);
@@ -1302,8 +1309,14 @@ async function editMyAnnounce(id) {
 }
 
 async function deleteMyAnnounce(id) {
+    const a = announces.find(ann => ann.id === id);
+    if (!a) return;
+    if (a.sellerId !== currentUser.id && !currentUser.is_admin) {
+        showToast('❌ Vous n\'êtes pas autorisé à supprimer cette annonce.');
+        return;
+    }
     if (!confirm('Voulez-vous vraiment supprimer cette annonce ?')) return;
-    announces = announces.filter(a => a.id !== id);
+    announces = announces.filter(ann => ann.id !== id);
     if (AuraAuth._supabase) {
         await AuraAuth._supabase.from('announces').delete().eq('id', id);
     }
