@@ -51,7 +51,42 @@ function refreshUserData() {
                 email: currentUser.email,
                 pseudo: currentUser.pseudo,
                 last_seen: new Date().toISOString()
-            }, { onConflict: 'id' }).then();
+            }, { onConflict: 'id' }).then(() => {
+                // Synchronisation automatique en arrière-plan (Premium, Admin, etc.) sans déconnexion forcée !
+                AuraAuth._supabase.from('profiles').select('*').eq('id', currentUser.id).single()
+                    .then(({ data }) => {
+                        if (data) {
+                            let updated = false;
+                            if (currentUser.is_admin !== data.is_admin) {
+                                currentUser.is_admin = data.is_admin;
+                                updated = true;
+                            }
+                            if (currentUser.is_premium !== data.is_premium) {
+                                currentUser.is_premium = data.is_premium;
+                                updated = true;
+                            }
+                            if (currentUser.premium_style !== data.premium_style) {
+                                currentUser.premium_style = data.premium_style;
+                                updated = true;
+                            }
+                            if (currentUser.pseudo !== data.pseudo) {
+                                currentUser.pseudo = data.pseudo;
+                                updated = true;
+                            }
+                            if (currentUser.picture !== data.avatar_url) {
+                                currentUser.picture = data.avatar_url;
+                                updated = true;
+                            }
+
+                            if (updated) {
+                                localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                                if (currentPage === 'settings' || currentPage === 'admin') {
+                                    renderApp();
+                                }
+                            }
+                        }
+                    }).catch(err => console.error('Background profile sync error:', err));
+            });
         }
 
         const avatarEl = document.getElementById('headerAvatar');
