@@ -772,20 +772,7 @@ function renderAdmin() {
             </div>
         </div>
 
-        ${currentUser.email === 'leoazex20@gmail.com' ? `
-        <div class="sidebar-card" style="margin-bottom:24px;border-color:var(--danger);">
-            <h3 class="section-title" style="color:var(--danger);">Gérer les Administrateurs</h3>
-            <div style="display:flex;flex-direction:column;gap:12px;">
-                <div style="display:flex;gap:10px;">
-                    <input type="text" id="adminGrantAdminEmail" placeholder="adresse@email.com" style="flex:1;">
-                    <button class="btn btn-primary" style="background:var(--danger);border:none;" onclick="adminGrantAdminByEmail()">Ajouter Admin</button>
-                </div>
-                <div style="display:flex;gap:10px;">
-                    <input type="text" id="adminRevokeAdminEmail" placeholder="adresse@email.com" style="flex:1;">
-                    <button class="btn btn-secondary" onclick="adminRevokeAdminByEmail()">Retirer Admin</button>
-                </div>
-            </div>
-        </div>` : ''}
+
 
         <div id="adminView" class="sidebar-card">
             <p style="color:var(--white-50);">Sélectionnez une action ci-dessus.</p>
