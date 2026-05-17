@@ -739,10 +739,16 @@ function renderAdmin() {
 
         ${currentUser.email === 'leoazex20@gmail.com' ? `
         <div class="sidebar-card" style="margin-bottom:24px;border-color:var(--danger);">
-            <h3 class="section-title" style="color:var(--danger);">Donner Admin par Email</h3>
-            <div style="display:flex;gap:10px;">
-                <input type="text" id="adminGrantAdminEmail" placeholder="adresse@email.com" style="flex:1;">
-                <button class="btn btn-primary" style="background:var(--danger);border:none;" onclick="adminGrantAdminByEmail()">Activer Admin</button>
+            <h3 class="section-title" style="color:var(--danger);">Gérer les Administrateurs</h3>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                <div style="display:flex;gap:10px;">
+                    <input type="text" id="adminGrantAdminEmail" placeholder="adresse@email.com" style="flex:1;">
+                    <button class="btn btn-primary" style="background:var(--danger);border:none;" onclick="adminGrantAdminByEmail()">Ajouter Admin</button>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <input type="text" id="adminRevokeAdminEmail" placeholder="adresse@email.com" style="flex:1;">
+                    <button class="btn btn-secondary" onclick="adminRevokeAdminByEmail()">Retirer Admin</button>
+                </div>
             </div>
         </div>` : ''}
 
@@ -877,6 +883,25 @@ async function adminGrantAdminByEmail() {
 
     showToast('👑 Admin accordé à ' + email);
     document.getElementById('adminGrantAdminEmail').value = '';
+}
+
+async function adminRevokeAdminByEmail() {
+    const email = document.getElementById('adminRevokeAdminEmail')?.value.trim();
+    if (!email) return showToast('⚠️ Entrez une adresse email');
+    if (email === 'leoazex20@gmail.com') return showToast('❌ Vous ne pouvez pas vous retirer vous-même');
+    if (!AuraAuth._supabase) return showToast('❌ Supabase non connecté');
+
+    const { data: users, error: fetchErr } = await AuraAuth._supabase.from('profiles').select('id').eq('email', email);
+    if (fetchErr) return showToast('❌ Erreur de recherche : ' + fetchErr.message);
+    if (!users || users.length === 0) return showToast('❌ Aucun utilisateur trouvé avec cet email');
+
+    const userId = users[0].id;
+
+    const { error: updateErr } = await AuraAuth._supabase.from('profiles').update({ is_admin: false }).eq('id', userId);
+    if (updateErr) return showToast('❌ Erreur mise à jour : ' + updateErr.message);
+
+    showToast('🚫 Admin retiré pour ' + email);
+    document.getElementById('adminRevokeAdminEmail').value = '';
 }
 
 
