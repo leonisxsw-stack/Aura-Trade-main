@@ -143,6 +143,7 @@ let profilesCache = {
 let nextId = 1;
 let currentPage = 'home';
 let currentDetailId = null;
+let currentProfileUserId = null;
 let currentCreateStep = 1;
 let createData = {};
 let activeGameFilter = null;
@@ -160,6 +161,7 @@ function navigate(page, param) {
 
     currentPage = page;
     if (page === 'detail') currentDetailId = param;
+    if (page === 'profile') currentProfileUserId = param || null;
     if (page === 'create') { currentCreateStep = 1; createData = {}; }
     if (page === 'explore') {
         if (typeof param === 'string' && param.startsWith('search:')) {
@@ -188,7 +190,7 @@ function renderApp() {
         'detail': () => renderDetail(currentDetailId),
         'create': renderCreate,
         'explore': renderExplore,
-        'profile': renderProfile,
+        'profile': () => renderProfile(currentProfileUserId),
         'messages': renderMessages,
         'favorites': renderFavorites,
         'settings': renderSettings,
@@ -204,7 +206,7 @@ function renderApp() {
     attachListeners();
     updateBadges();
     if (currentPage === 'profile') {
-        loadReceivedReviews();
+        loadUserProfilePage(currentProfileUserId);
     }
 }
 
@@ -379,8 +381,8 @@ function renderDetail(id) {
             </div>
 
             <div class="detail-sidebar">
-                <div class="sidebar-card seller-card">
-                    <div class="seller-header">
+                <div class="sidebar-card seller-card" title="Voir le profil" style="transition: transform 0.2s, box-shadow 0.2s;" onmouseenter="this.style.transform='translateY(-2px)';" onmouseleave="this.style.transform='none';">
+                    <div class="seller-header" style="cursor:pointer;" onclick="navigate('profile', '${a.sellerId}')">
                         <div class="avatar-md" style="${a.sellerPicture ? `background-image:url(${a.sellerPicture});background-size:cover;color:transparent;` : ''}">${a.sellerPicture ? '' : (a.sellerAvatar || '?')}</div>
                         <div class="seller-meta">
                             <div class="seller-name ${a.sellerPremium ? `animated-pseudo ${a.sellerPremiumStyle || 'anim-gold'}` : ''}">${a.sellerName} ${a.sellerPremium ? '<span class="premium-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}</div>
@@ -1246,37 +1248,14 @@ async function updateProfile() {
 
 
 
-function renderProfile() {
-    const myAnnounces = announces.filter(a => a.sellerId === currentUser.id);
+function renderProfile(userId = null) {
+    const isOwnProfile = !userId || userId === currentUser.id;
+    const targetUserId = isOwnProfile ? currentUser.id : userId;
     return `
-    <div class="container" style="max-width:800px;">
-        <div class="profile-header-card">
-            <div class="avatar-lg" style="margin:0 auto 14px;">${currentUser.avatar}</div>
-            <h2 style="font-weight:800;color:var(--white);">${currentUser.pseudo}</h2>
-            <p style="color:var(--white-50);">${currentUser.name} · Membre depuis ${currentUser.memberSince}</p>
-            <div class="profile-stats-row">
-                <div class="profile-stat"><div class="val">${myAnnounces.length}</div><div class="lbl">Annonces</div></div>
-                <div class="profile-stat"><div class="val" id="profileTradesVal">${currentUser.trades || 0}</div><div class="lbl">Échanges</div></div>
-                <div class="profile-stat"><div class="val" id="profileRatingVal">⭐ ${currentUser.rating || 5.0}</div><div class="lbl">Note</div></div>
-            </div>
-            <button class="btn btn-secondary mt-4" onclick="navigate('settings')">⚙️ Paramètres</button>
-        </div>
-
-
-        <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);">
-            <button class="btn btn-ghost" style="border-bottom:2px solid var(--orange);border-radius:0;color:var(--white);">Mes annonces</button>
-            <button class="btn btn-ghost" style="border-radius:0;" onclick="document.getElementById('tradeHistorySection').scrollIntoView({behavior:'smooth'})">⭐ Avis reçus</button>
-        </div>
-        <div class="grid-3">${myAnnounces.map(a => renderMyAnnounceCard(a)).join('')}</div>
-        ${myAnnounces.length === 0 ? '<p style="text-align:center;color:var(--white-50);padding:40px 0;">Aucune annonce publiée.</p>' : ''}
-        <div id="tradeHistorySection" style="margin-top:40px;">
-            <div class="section-header"><h2>⭐ Avis reçus</h2></div>
-            <div id="receivedReviewsView" style="margin-top:16px;">
-                <p style="color:var(--white-50);padding:30px 0;text-align:center;">Chargement des avis...</p>
-            </div>
-        </div>
+    <div class="container" style="max-width:800px;" id="profilePageViewContainer" data-user-id="${targetUserId}">
+        <p style="text-align:center;color:var(--white-50);padding:60px 0;">Chargement du profil...</p>
     </div>
-`;
+    `;
 }
 
 function renderMyAnnounceCard(a) {
@@ -1474,7 +1453,7 @@ function openChat(otherId) {
     overlay.innerHTML = `
     <div class="modal" style="max-width:540px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-            <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="${otherId !== 'aura-support' ? `closeModal(); navigate('profile', '${otherId}');` : ''}" title="${otherId !== 'aura-support' ? 'Voir le profil' : ''}">
                 <div class="avatar-sm">${u.avatar}</div>
                 <strong style="color:var(--white);">${u.name}</strong>
             </div>
@@ -1986,6 +1965,160 @@ async function submitReview(targetUserId, targetUserPseudo) {
         console.error('Submit review error:', e);
         showToast('❌ Erreur lors de la soumission de l\'avis.');
     }
+}
+
+// ============================================================
+// Aura Trade — Public Profiles system
+// ============================================================
+
+async function loadUserProfilePage(userId) {
+    const isOwnProfile = !userId || userId === currentUser.id;
+    const targetUserId = isOwnProfile ? currentUser.id : userId;
+    
+    const container = document.getElementById('profilePageViewContainer');
+    if (!container) return;
+    
+    let profile = null;
+    if (isOwnProfile) {
+        profile = currentUser;
+    } else {
+        if (AuraAuth._supabase) {
+            try {
+                const { data, error } = await AuraAuth._supabase.from('profiles').select('*').eq('id', targetUserId).single();
+                if (!error && data) {
+                    profile = {
+                        id: data.id,
+                        name: data.full_name || 'Utilisateur',
+                        pseudo: data.pseudo || 'Sans pseudo',
+                        picture: data.avatar_url,
+                        avatar: (data.pseudo || data.full_name || 'U').charAt(0).toUpperCase(),
+                        rating: data.rating || 5.0,
+                        trades: data.trades || 0,
+                        is_premium: data.is_premium || false,
+                        premium_style: data.premium_style || 'anim-gold',
+                        memberSince: data.created_at ? new Date(data.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : 'récemment'
+                    };
+                }
+            } catch (e) {
+                console.error('Failed to load external profile:', e);
+            }
+        }
+    }
+    
+    if (!profile) {
+        container.innerHTML = '<p style="text-align:center;color:var(--white-50);padding:60px 0;">Impossible de charger ce profil.</p>';
+        return;
+    }
+    
+    const myAnnounces = announces.filter(a => a.sellerId === targetUserId);
+    
+    const premiumClass = profile.is_premium ? 'premium-card' : '';
+    const pseudoClass = profile.is_premium ? `animated-pseudo ${profile.premium_style || 'anim-gold'}` : '';
+    const premiumBadge = profile.is_premium ? `<span class="premium-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>` : '';
+    
+    const avatarHtml = profile.picture 
+        ? `<div class="avatar-lg" style="margin:0 auto 14px;background-image:url(${profile.picture});background-size:cover;color:transparent;border:2px solid var(--border);"></div>`
+        : `<div class="avatar-lg" style="margin:0 auto 14px;">${profile.avatar}</div>`;
+        
+    container.innerHTML = `
+        <div class="profile-header-card ${premiumClass}">
+            ${avatarHtml}
+            <h2 style="font-weight:800;color:var(--white);"><span class="${pseudoClass}">${profile.pseudo}</span> ${premiumBadge}</h2>
+            <p style="color:var(--white-50);">${isOwnProfile ? profile.name : 'Membre'} · Membre depuis ${profile.memberSince || 'récemment'}</p>
+            
+            <div class="profile-stats-row" style="margin-top:16px;">
+                <div class="profile-stat"><div class="val">${myAnnounces.length}</div><div class="lbl">Annonces</div></div>
+                <div class="profile-stat"><div class="val" id="profileTradesVal">${profile.trades || 0}</div><div class="lbl">Échanges</div></div>
+                <div class="profile-stat"><div class="val" id="profileRatingVal">⭐ ${profile.rating || 5.0}</div><div class="lbl">Note</div></div>
+            </div>
+            
+            <div style="margin-top:24px;display:flex;justify-content:center;gap:12px;">
+                ${isOwnProfile ? `
+                    <button class="btn btn-secondary" onclick="navigate('settings')">⚙️ Paramètres</button>
+                ` : `
+                    <button class="btn btn-primary" onclick="openProfileContact('${profile.id}')">
+                        💬 Contacter le joueur
+                    </button>
+                    <button class="btn btn-ghost" style="color:var(--orange);border:1.5px solid rgba(255,145,0,0.3);border-radius:var(--radius-full);padding:8px 18px;" onclick="openReviewModal('${profile.id}', '${(profile.pseudo || 'Sans pseudo').replace(/'/g, "\\'")}')">
+                        ⭐ Laisser un avis
+                    </button>
+                `}
+            </div>
+        </div>
+
+        <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);">
+            <button class="btn btn-ghost" style="border-bottom:2px solid var(--orange);border-radius:0;color:var(--white);">${isOwnProfile ? 'Mes annonces' : 'Ses annonces'}</button>
+            <button class="btn btn-ghost" style="border-radius:0;" onclick="document.getElementById('tradeHistorySection').scrollIntoView({behavior:'smooth'})">⭐ Avis reçus</button>
+        </div>
+        
+        <div class="grid-3">
+            ${myAnnounces.map(a => renderMyAnnounceCard(a)).join('')}
+        </div>
+        ${myAnnounces.length === 0 ? `<p style="text-align:center;color:var(--white-50);padding:40px 0;">Aucune annonce active.</p>` : ''}
+        
+        <div id="tradeHistorySection" style="margin-top:40px;">
+            <div class="section-header"><h2>⭐ Avis reçus</h2></div>
+            <div id="receivedReviewsView" style="margin-top:16px;">
+                <p style="color:var(--white-50);padding:30px 0;text-align:center;">Chargement des avis...</p>
+            </div>
+        </div>
+    `;
+    
+    loadReceivedReviewsForUser(targetUserId);
+}
+
+function openProfileContact(sellerId) {
+    openChat(sellerId);
+}
+
+async function loadReceivedReviewsForUser(targetUserId) {
+    const view = document.getElementById('receivedReviewsView');
+    if (!view) return;
+    
+    let list = [];
+    if (AuraAuth._supabase) {
+        try {
+            const { data, error } = await AuraAuth._supabase
+                .from('reviews')
+                .select('*')
+                .eq('to_user_id', targetUserId)
+                .order('created_at', { ascending: false });
+            if (!error && data) {
+                list = data;
+            } else if (error && error.code === '42P01') {
+                view.innerHTML = `
+                    <div style="text-align:center;padding:30px 10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border);">
+                        <p style="color:var(--orange);font-weight:700;">⚠️ Script SQL non exécuté</p>
+                    </div>
+                `;
+                return;
+            }
+        } catch (e) {
+            console.error('Failed to load reviews:', e);
+        }
+    }
+    
+    if (list.length === 0) {
+        view.innerHTML = '<p style="text-align:center;color:var(--white-50);padding:30px 0;">Aucun avis reçu pour le moment.</p>';
+        return;
+    }
+    
+    view.innerHTML = list.map(r => {
+        const stars = '⭐'.repeat(r.rating);
+        const dateStr = new Date(r.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `
+            <div class="trade-history-item" style="margin-bottom:12px; padding:12px; background:var(--bg-input); border-radius:var(--radius-md); display:flex; justify-content:space-between; align-items:center;">
+                <div style="flex:1; padding-right:12px;">
+                    <strong style="color:var(--white);">${r.from_user_pseudo || 'Utilisateur'}</strong>
+                    <p style="font-size:0.85rem;color:var(--white-70);margin-top:4px;word-break:break-word;">${r.comment || 'Aucun commentaire.'}</p>
+                </div>
+                <div style="text-align:right; flex-shrink:0;">
+                    <div style="color:var(--orange); font-size:0.9rem;">${stars}</div>
+                    <div style="font-size:0.72rem;color:var(--white-30);margin-top:4px;">${dateStr}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 init();
