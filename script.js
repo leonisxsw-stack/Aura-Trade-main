@@ -50,6 +50,8 @@ function refreshUserData() {
                 id: currentUser.id,
                 email: currentUser.email,
                 pseudo: currentUser.pseudo,
+                rating: currentUser.rating !== undefined && currentUser.rating !== null ? parseFloat(currentUser.rating) : 0.0,
+                trades: currentUser.trades || 0,
                 last_seen: new Date().toISOString()
             }, { onConflict: 'id' }).then(() => {
                 // Synchronisation automatique en arrière-plan (Premium, Admin, etc.) sans déconnexion forcée !
