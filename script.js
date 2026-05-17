@@ -1338,7 +1338,6 @@ async function deleteMyAnnounce(id) {
 
 function renderMessages() {
 
-    messages.forEach(m => { if (m.toUserId === currentUser.id) m.read = true; });
     const conversations = {};
     messages.forEach(m => {
         // Masquer les conversations support de la boîte mail privée de l'administrateur
