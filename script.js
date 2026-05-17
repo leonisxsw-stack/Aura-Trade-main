@@ -1449,6 +1449,7 @@ function openChat(otherId) {
     if (unreadMsgs.length > 0) {
         unreadMsgs.forEach(m => m.read = true);
         updateBadges();
+        renderApp(); // Met à jour instantanément la liste des messages en arrière-plan (le badge disparaît en direct)
         if (AuraAuth._supabase) {
             AuraAuth._supabase.from('messages').update({ read: true }).eq('fromUserId', otherId).eq('toUserId', currentUser.id)
                 .then(({error}) => { if (error) console.error('Failed to mark messages as read:', error); });
