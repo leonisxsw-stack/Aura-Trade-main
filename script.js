@@ -1844,48 +1844,54 @@ async function loadReceivedReviews() {
     view.innerHTML = list.map(r => {
         const stars = '⭐'.repeat(r.rating);
         const dateStr = new Date(r.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const isMyReview = r.from_user_id === currentUser.id;
         return `
             <div class="trade-history-item" style="margin-bottom:12px; padding:12px; background:var(--bg-input); border-radius:var(--radius-md); display:flex; justify-content:space-between; align-items:center;">
                 <div style="flex:1; padding-right:12px;">
                     <strong style="color:var(--white);">${r.from_user_pseudo || 'Utilisateur'}</strong>
                     <p style="font-size:0.85rem;color:var(--white-70);margin-top:4px;word-break:break-word;">${r.comment || 'Aucun commentaire.'}</p>
                 </div>
-                <div style="text-align:right; flex-shrink:0;">
+                <div style="text-align:right; flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end;">
                     <div style="color:var(--orange); font-size:0.9rem;">${stars}</div>
                     <div style="font-size:0.72rem;color:var(--white-30);margin-top:4px;">${dateStr}</div>
+                    ${isMyReview ? `
+                        <button class="btn btn-secondary btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); margin-top:6px; cursor:pointer;" onclick="openReviewModal('${r.to_user_id}', 'Ce joueur', '${r.id}', ${r.rating}, '${(r.comment || '').replace(/'/g, "\\'")}')">
+                            ✏️ Modifier
+                        </button>
+                    ` : ''}
                 </div>
             </div>
         `;
     }).join('');
 }
 
-async function openReviewModal(targetUserId, targetUserPseudo) {
-    currentRatingSelection = 5;
-    let existingComment = '';
-    
-    if (AuraAuth._supabase) {
+async function openReviewModal(targetUserId, targetUserPseudo, reviewId = null, initialRating = 5, initialComment = '') {
+    // Check 5 review limit for a new review
+    if (!reviewId && AuraAuth._supabase) {
         try {
             const { data, error } = await AuraAuth._supabase
                 .from('reviews')
-                .select('*')
+                .select('id')
                 .eq('from_user_id', currentUser.id)
                 .eq('to_user_id', targetUserId);
-            const existingReview = data && data.length > 0 ? data[0] : null;
-            if (!error && existingReview) {
-                currentRatingSelection = existingReview.rating;
-                existingComment = existingReview.comment || '';
+            if (!error && data && data.length >= 5) {
+                showToast('⚠️ Limite de 5 avis maximum sur ce joueur atteinte.');
+                return;
             }
         } catch (e) {
-            console.error('Error fetching existing review:', e);
+            console.error('Error checking review count:', e);
         }
     }
+
+    currentRatingSelection = initialRating;
+    const isEdit = !!reviewId;
     
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'reviewModal';
     overlay.innerHTML = `
     <div class="modal" style="max-width:400px;text-align:center;">
-        <h3 style="color:var(--white);margin-bottom:12px;">⭐ Laisser un avis</h3>
+        <h3 style="color:var(--white);margin-bottom:12px;">${isEdit ? '✏️ Modifier votre avis' : '⭐ Laisser un avis'}</h3>
         <p style="color:var(--white-50);font-size:0.85rem;margin-bottom:20px;">Évaluez votre échange avec <strong>${targetUserPseudo}</strong></p>
         
         <div style="display:flex;justify-content:center;gap:10px;margin-bottom:20px;" id="ratingStarsRow">
@@ -1894,11 +1900,11 @@ async function openReviewModal(targetUserId, targetUserPseudo) {
             `).join('')}
         </div>
         
-        <textarea id="reviewComment" placeholder="Laissez un commentaire sur le joueur (rapide, fiable, honnête...)" style="width:100%;height:100px;padding:12px;background:var(--bg-input);border:1.5px solid var(--border);border-radius:var(--radius-md);color:var(--white);font-family:'Inter',sans-serif;outline:none;resize:none;margin-bottom:20px;font-size:0.85rem;">${existingComment}</textarea>
+        <textarea id="reviewComment" placeholder="Laissez un commentaire sur le joueur (rapide, fiable, honnête...)" style="width:100%;height:100px;padding:12px;background:var(--bg-input);border:1.5px solid var(--border);border-radius:var(--radius-md);color:var(--white);font-family:'Inter',sans-serif;outline:none;resize:none;margin-bottom:20px;font-size:0.85rem;">${initialComment}</textarea>
         
         <div style="display:flex;gap:10px;justify-content:flex-end;">
             <button class="btn btn-secondary" onclick="closeReviewModal()">Annuler</button>
-            <button class="btn btn-primary" onclick="submitReview('${targetUserId}', '${targetUserPseudo.replace(/'/g, "\\'")}')">Soumettre</button>
+            <button class="btn btn-primary" onclick="submitReview('${targetUserId}', '${targetUserPseudo.replace(/'/g, "\\'")}', ${reviewId ? `'${reviewId}'` : 'null'})">Soumettre</button>
         </div>
     </div>`;
     
@@ -1930,7 +1936,7 @@ function setRatingSelection(num) {
     });
 }
 
-async function submitReview(targetUserId, targetUserPseudo) {
+async function submitReview(targetUserId, targetUserPseudo, reviewId = null) {
     const comment = document.getElementById('reviewComment').value.trim();
     if (!comment) {
         showToast('⚠️ Veuillez écrire un petit commentaire.');
@@ -1943,17 +1949,9 @@ async function submitReview(targetUserId, targetUserPseudo) {
     }
     
     try {
-        // Check if review already exists
-        const { data, error: checkErr } = await AuraAuth._supabase
-            .from('reviews')
-            .select('id')
-            .eq('from_user_id', currentUser.id)
-            .eq('to_user_id', targetUserId);
-            
-        const existingReview = data && data.length > 0 ? data[0] : null;
         let saveErr = null;
-        if (!checkErr && existingReview) {
-            // Update existing review
+        if (reviewId) {
+            // Update specific review
             const { error } = await AuraAuth._supabase
                 .from('reviews')
                 .update({
@@ -1961,7 +1959,7 @@ async function submitReview(targetUserId, targetUserPseudo) {
                     comment: comment,
                     created_at: new Date().toISOString()
                 })
-                .eq('id', existingReview.id);
+                .eq('id', reviewId);
             saveErr = error;
         } else {
             // Insert new review
@@ -2161,15 +2159,21 @@ async function loadReceivedReviewsForUser(targetUserId) {
     view.innerHTML = list.map(r => {
         const stars = '⭐'.repeat(r.rating);
         const dateStr = new Date(r.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const isMyReview = r.from_user_id === currentUser.id;
         return `
             <div class="trade-history-item" style="margin-bottom:12px; padding:12px; background:var(--bg-input); border-radius:var(--radius-md); display:flex; justify-content:space-between; align-items:center;">
                 <div style="flex:1; padding-right:12px;">
                     <strong style="color:var(--white);">${r.from_user_pseudo || 'Utilisateur'}</strong>
                     <p style="font-size:0.85rem;color:var(--white-70);margin-top:4px;word-break:break-word;">${r.comment || 'Aucun commentaire.'}</p>
                 </div>
-                <div style="text-align:right; flex-shrink:0;">
+                <div style="text-align:right; flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end;">
                     <div style="color:var(--orange); font-size:0.9rem;">${stars}</div>
                     <div style="font-size:0.72rem;color:var(--white-30);margin-top:4px;">${dateStr}</div>
+                    ${isMyReview ? `
+                        <button class="btn btn-secondary btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); margin-top:6px; cursor:pointer;" onclick="openReviewModal('${r.to_user_id}', 'Ce joueur', '${r.id}', ${r.rating}, '${(r.comment || '').replace(/'/g, "\\'")}')">
+                            ✏️ Modifier
+                        </button>
+                    ` : ''}
                 </div>
             </div>
         `;
