@@ -209,7 +209,10 @@ function renderApp() {
 function updateBadges() {
     const unread = messages.filter(m => m.toUserId === currentUser.id && !m.read).length;
     const badge = document.getElementById('msgBadge');
-    if (badge) badge.style.display = unread > 0 ? 'block' : 'none';
+    if (badge) {
+        badge.style.display = unread > 0 ? 'flex' : 'none';
+        badge.textContent = unread;
+    }
 }
 
 function renderCard(a) {
@@ -1348,7 +1351,8 @@ function renderMessages() {
                         ? `<img src="${profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` 
                         : (profile.pseudo ? profile.pseudo.charAt(0).toUpperCase() : '?');
                 }
-                const hasUnread = conv.some(m => m.toUserId === currentUser.id && !m.read);
+                const unreadCount = conv.filter(m => m.toUserId === currentUser.id && !m.read).length;
+                const hasUnread = unreadCount > 0;
                 const announce = announces.find(a => a.id === conv[0].announceId);
                 return `
             <div class="msg-preview ${hasUnread ? 'unread' : ''}" onclick="openChat('${otherId}')">
@@ -1358,7 +1362,7 @@ function renderMessages() {
                     <p style="font-size:0.78rem;color:var(--white-50);">${announce ? 'Re: ' + announce.title : 'Conversation'}</p>
                     <p style="font-size:0.75rem;color:var(--white-30);">${last.content.substring(0, 55)}...</p>
                 </div>
-                ${hasUnread ? '<span style="width:8px;height:8px;background:var(--orange);border-radius:50%;flex-shrink:0;"></span>' : ''}
+                ${hasUnread ? `<span style="background:var(--orange); color:white; font-size:0.75rem; font-weight:800; min-width:18px; height:18px; padding:0 5px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadCount}</span>` : ''}
             </div>`;
             }).join('')}
     </div>
