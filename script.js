@@ -745,11 +745,11 @@ function renderSettings() {
 function renderAdmin() {
     if (currentUser.email !== 'leoazex20@gmail.com' && !currentUser.is_admin) return '<div class="container">Accès refusé</div>';
 
-    // Simulate some stats if DB fetch is slow or unavailable for all profiles
     const totalAnnounces = announces.length;
 
-    // Charger automatiquement la liste des utilisateurs au chargement du panel
+    // Charger automatiquement les utilisateurs et les annonces au démarrage
     setTimeout(adminShowUsers, 50);
+    setTimeout(adminShowAnnounces, 50);
 
     return `
     <div class="container">
@@ -760,14 +760,15 @@ function renderAdmin() {
 
         <div style="display:flex; gap:16px; margin-bottom:24px;">
             <div class="sidebar-card" style="flex:1;"><div style="color:var(--white-50);">Total Annonces</div><div style="font-size:1.5rem;font-weight:800;">${totalAnnounces}</div></div>
-            <div class="sidebar-card" style="flex:1;">
-                <div style="color:var(--white-50);">Modération Annonces</div>
-                <button class="btn btn-secondary btn-sm mt-2" onclick="adminShowAnnounces()">Ouvrir</button>
-            </div>
+            <div class="sidebar-card" style="flex:1;"><div style="color:var(--white-50);">Total Utilisateurs</div><div id="adminTotalUsersCount" style="font-size:1.5rem;font-weight:800;">...</div></div>
         </div>
 
-        <div id="adminView" class="sidebar-card">
+        <div id="adminUsersView" class="sidebar-card" style="margin-bottom:24px;">
             <p style="color:var(--white-50);">Chargement des utilisateurs...</p>
+        </div>
+
+        <div id="adminAnnouncesView" class="sidebar-card">
+            <p style="color:var(--white-50);">Chargement des annonces...</p>
         </div>
 
     </div>
@@ -775,15 +776,18 @@ function renderAdmin() {
 }
 
 async function adminShowUsers() {
-    const view = document.getElementById('adminView');
+    const view = document.getElementById('adminUsersView');
     if (!view) return;
-    view.innerHTML = '<p>Chargement des utilisateurs...</p>';
     if (!AuraAuth._supabase) return view.innerHTML = '<p>Erreur: Supabase non connecté.</p>';
 
     const { data: users, error } = await AuraAuth._supabase.from('profiles').select('*');
     if (error) return view.innerHTML = '<p>Erreur: ' + error.message + '</p>';
 
     const onlineUsers = users.filter(u => u.last_seen && (Date.now() - new Date(u.last_seen).getTime()) < 3600000).length;
+
+    // Mettre à jour le compteur d'utilisateurs dans la statistique en haut
+    const statsEl = document.getElementById('adminTotalUsersCount');
+    if (statsEl) statsEl.textContent = users.length;
 
     view.innerHTML = `
         <h3 class="section-title">Utilisateurs inscrits (${users.length} total, ${onlineUsers} en ligne récemment)</h3>
@@ -838,17 +842,21 @@ async function adminBan(userId) {
 }
 
 function adminShowAnnounces() {
-    const view = document.getElementById('adminView');
+    const view = document.getElementById('adminAnnouncesView');
+    if (!view) return;
+
     view.innerHTML = `
-        <h3 class="section-title">Toutes les annonces</h3>
+        <h3 class="section-title" style="color:var(--orange);">📢 Modération des Annonces (${announces.length} en ligne)</h3>
         <div style="max-height:400px;overflow-y:auto;">
-            ${announces.map(a => `
+            ${announces.length === 0 ? `
+                <p style="color:var(--white-50); padding:10px;">Aucune annonce active en ligne.</p>
+            ` : announces.map(a => `
                 <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <strong style="color:var(--white);">${a.title}</strong>
                         <div style="font-size:0.8rem;color:var(--white-50);">Par ${a.sellerName} (ID: ${a.id})</div>
                     </div>
-                    <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="adminDeleteAnnounce(${a.id})">Supprimer</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="adminDeleteAnnounce(${a.id})">🗑️ Supprimer</button>
                 </div>
             `).join('')}
         </div>
