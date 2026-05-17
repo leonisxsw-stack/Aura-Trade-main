@@ -130,6 +130,7 @@ const games = [
 
 let announces = [];
 let messages = [];
+let profilesCache = {};
 
 let nextId = 1;
 let currentPage = 'home';
@@ -1261,7 +1262,6 @@ function renderMessages() {
         if (!conversations[otherId]) conversations[otherId] = [];
         conversations[otherId].push(m);
     });
-    const usersMap = { 'user2': { name: 'EmmaDubois', avatar: 'E' }, 'user3': { name: 'TheoGamer', avatar: 'T' }, 'user4': { name: 'SarahPets', avatar: 'S' }, 'user5': { name: 'KnifeKing', avatar: 'K' } };
     return `
     <div class="container" style="max-width:700px;">
         <h2 style="font-size:1.4rem;font-weight:800;color:var(--white);margin-bottom:20px;">💬 Messages</h2>
@@ -1269,7 +1269,20 @@ function renderMessages() {
             Object.keys(conversations).map(otherId => {
                 const conv = conversations[otherId].sort((a, b) => new Date(b.date) - new Date(a.date));
                 const last = conv[0];
-                const u = usersMap[otherId] || { name: 'Utilisateur', avatar: '?' };
+                
+                const profile = profilesCache[otherId];
+                let u = { name: 'Utilisateur', avatar: '?' };
+                if (profile) {
+                    if (profile.is_admin || profile.email === 'leoazex20@gmail.com') {
+                        u.name = '👑 Support Aura Trade';
+                        u.avatar = '🛡️';
+                    } else {
+                        u.name = profile.pseudo || profile.email || 'Utilisateur';
+                        u.avatar = profile.avatar_url 
+                            ? `<img src="${profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` 
+                            : (profile.pseudo ? profile.pseudo.charAt(0).toUpperCase() : '?');
+                    }
+                }
                 const hasUnread = conv.some(m => m.toUserId === currentUser.id && !m.read);
                 const announce = announces.find(a => a.id === conv[0].announceId);
                 return `
@@ -1350,8 +1363,20 @@ function openChat(otherId) {
         (m.fromUserId === currentUser.id && m.toUserId === otherId) ||
         (m.toUserId === currentUser.id && m.fromUserId === otherId)
     ).sort((a, b) => new Date(a.date) - new Date(b.date));
-    const usersMap = { 'user2': { name: 'EmmaDubois', avatar: 'E' }, 'user3': { name: 'TheoGamer', avatar: 'T' }, 'user4': { name: 'SarahPets', avatar: 'S' }, 'user5': { name: 'KnifeKing', avatar: 'K' } };
-    const u = usersMap[otherId] || { name: 'Utilisateur', avatar: '?' };
+
+    const profile = profilesCache[otherId];
+    let u = { name: 'Utilisateur', avatar: '?' };
+    if (profile) {
+        if (profile.is_admin || profile.email === 'leoazex20@gmail.com') {
+            u.name = '👑 Support Aura Trade';
+            u.avatar = '🛡️';
+        } else {
+            u.name = profile.pseudo || profile.email || 'Utilisateur';
+            u.avatar = profile.avatar_url 
+                ? `<img src="${profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` 
+                : (profile.pseudo ? profile.pseudo.charAt(0).toUpperCase() : '?');
+        }
+    }
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'activeModal';
@@ -1574,6 +1599,26 @@ async function fetchMessages() {
             .or(`fromUserId.eq.${currentUser.id},toUserId.eq.${currentUser.id}`)
             .order('date', { ascending: false });
         if (error) throw error;
+
+        // Pré-chargement des profils pour afficher le vrai pseudo et la vraie photo
+        const otherIds = new Set();
+        (data || []).forEach(m => {
+            if (m.fromUserId && m.fromUserId !== currentUser.id) otherIds.add(m.fromUserId);
+            if (m.toUserId && m.toUserId !== currentUser.id) otherIds.add(m.toUserId);
+        });
+        const idsToFetch = Array.from(otherIds).filter(id => !profilesCache[id]);
+        if (idsToFetch.length > 0) {
+            try {
+                const { data: profiles } = await AuraAuth._supabase.from('profiles').select('id, pseudo, avatar_url, email, is_admin').in('id', idsToFetch);
+                if (profiles) {
+                    profiles.forEach(p => {
+                        profilesCache[p.id] = p;
+                    });
+                    if (currentPage === 'messages') renderApp();
+                }
+            } catch (pErr) { console.error('Failed to prefetch profile info:', pErr); }
+        }
+
         const newHash = JSON.stringify(data || []);
         if (window._lastMsgHash !== newHash) {
             window._lastMsgHash = newHash;
