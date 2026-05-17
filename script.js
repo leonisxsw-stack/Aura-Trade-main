@@ -203,6 +203,9 @@ function renderApp() {
     container.innerHTML = (pages[currentPage] || renderHome)();
     attachListeners();
     updateBadges();
+    if (currentPage === 'profile') {
+        loadReceivedReviews();
+    }
 }
 
 
@@ -399,6 +402,11 @@ function renderDetail(id) {
                             <span class="icon-inline">${isLiked ? icons.heartFilled : icons.heart}</span> 
                             ${isLiked ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                         </button>
+                        ${a.sellerId !== currentUser.id ? `
+                        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px;color:var(--orange);" onclick="openReviewModal('${a.sellerId}', '${a.sellerName.replace(/'/g, "\\'")}')">
+                            ⭐ Laisser un avis sur le joueur
+                        </button>
+                        ` : ''}
                     </div>
                 </div>
 
@@ -1248,8 +1256,8 @@ function renderProfile() {
             <p style="color:var(--white-50);">${currentUser.name} · Membre depuis ${currentUser.memberSince}</p>
             <div class="profile-stats-row">
                 <div class="profile-stat"><div class="val">${myAnnounces.length}</div><div class="lbl">Annonces</div></div>
-                <div class="profile-stat"><div class="val">${currentUser.trades || 0}</div><div class="lbl">Échanges</div></div>
-                <div class="profile-stat"><div class="val">⭐ ${currentUser.rating || 5.0}</div><div class="lbl">Note</div></div>
+                <div class="profile-stat"><div class="val" id="profileTradesVal">${currentUser.trades || 0}</div><div class="lbl">Échanges</div></div>
+                <div class="profile-stat"><div class="val" id="profileRatingVal">⭐ ${currentUser.rating || 5.0}</div><div class="lbl">Note</div></div>
             </div>
             <button class="btn btn-secondary mt-4" onclick="navigate('settings')">⚙️ Paramètres</button>
         </div>
@@ -1257,27 +1265,15 @@ function renderProfile() {
 
         <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);">
             <button class="btn btn-ghost" style="border-bottom:2px solid var(--orange);border-radius:0;color:var(--white);">Mes annonces</button>
-            <button class="btn btn-ghost" style="border-radius:0;" onclick="document.getElementById('tradeHistorySection').scrollIntoView({behavior:'smooth'})">Historique d'échanges</button>
+            <button class="btn btn-ghost" style="border-radius:0;" onclick="document.getElementById('tradeHistorySection').scrollIntoView({behavior:'smooth'})">⭐ Avis reçus</button>
         </div>
         <div class="grid-3">${myAnnounces.map(a => renderMyAnnounceCard(a)).join('')}</div>
         ${myAnnounces.length === 0 ? '<p style="text-align:center;color:var(--white-50);padding:40px 0;">Aucune annonce publiée.</p>' : ''}
         <div id="tradeHistorySection" style="margin-top:40px;">
-
-            <div class="section-header"><h2>${icons.barChart} Historique d'échanges</h2></div>
-            ${(currentUser.tradeHistory || []).map(t => `
-                <div class="trade-history-item">
-                    <div class="avatar-sm">${t.with[0]}</div>
-                    <div style="flex:1;">
-                        <strong style="color:var(--white);">${t.with}</strong>
-                        <div style="font-size:0.8rem;color:var(--white-50);">${t.given} ↔️ ${t.received}</div>
-                    </div>
-                    <span class="trade-arrow">↔️</span>
-                    <div style="text-align:right;">
-                        <div style="color:var(--legendary);">${'⭐'.repeat(t.rating)}</div>
-                        <div style="font-size:0.72rem;color:var(--white-30);">${t.date}</div>
-                    </div>
-                </div>
-            `).join('')}
+            <div class="section-header"><h2>⭐ Avis reçus</h2></div>
+            <div id="receivedReviewsView" style="margin-top:16px;">
+                <p style="color:var(--white-50);padding:30px 0;text-align:center;">Chargement des avis...</p>
+            </div>
         </div>
     </div>
 `;
@@ -1477,9 +1473,16 @@ function openChat(otherId) {
     overlay.id = 'activeModal';
     overlay.innerHTML = `
     <div class="modal" style="max-width:540px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-            <div class="avatar-sm">${u.avatar}</div>
-            <strong style="color:var(--white);">${u.name}</strong>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div class="avatar-sm">${u.avatar}</div>
+                <strong style="color:var(--white);">${u.name}</strong>
+            </div>
+            ${otherId !== 'aura-support' ? `
+            <button class="btn btn-ghost btn-sm" style="color:var(--orange);font-size:0.8rem;padding:4px 8px;border:1px solid rgba(255, 145, 0, 0.2);border-radius:12px;" onclick="openReviewModal('${otherId}', '${u.name.replace(/'/g, "\\'")}')">
+                ⭐ Donner un avis
+            </button>
+            ` : ''}
         </div>
         <div class="msg-thread" id="chatThread">
             ${conv.map(m => `
@@ -1788,6 +1791,201 @@ async function init() {
     if (page === 'detail' && id) navigate('detail', parseInt(id));
     else if (page === 'explore') navigate('explore');
     else navigate('home');
+}
+
+// ============================================================
+// Aura Trade — Player Review & Rating System
+// ============================================================
+
+let currentRatingSelection = 5;
+
+async function loadReceivedReviews() {
+    const view = document.getElementById('receivedReviewsView');
+    if (!view) return;
+    
+    let list = [];
+    if (AuraAuth._supabase) {
+        try {
+            const { data, error } = await AuraAuth._supabase
+                .from('reviews')
+                .select('*')
+                .eq('to_user_id', currentUser.id)
+                .order('created_at', { ascending: false });
+            if (!error && data) {
+                list = data;
+            } else if (error && error.code === '42P01') {
+                // Table doesn't exist yet
+                view.innerHTML = `
+                    <div style="text-align:center;padding:30px 10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border);">
+                        <p style="color:var(--orange);font-weight:700;margin-bottom:8px;">⚠️ Table 'reviews' non créée</p>
+                        <p style="color:var(--white-50);font-size:0.8rem;line-height:1.4;">L'administrateur doit exécuter le script SQL de création de la table <code>reviews</code> dans Supabase.</p>
+                    </div>
+                `;
+                return;
+            }
+        } catch (e) {
+            console.error('Failed to load reviews:', e);
+        }
+    }
+    
+    // Sync profile stats (rating, trades) asynchronously in parallel
+    if (AuraAuth._supabase) {
+        AuraAuth._supabase.from('profiles').select('rating, trades').eq('id', currentUser.id).single()
+            .then(({ data }) => {
+                if (data) {
+                    currentUser.rating = data.rating || 5.0;
+                    currentUser.trades = data.trades || 0;
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                    const ratingVal = document.getElementById('profileRatingVal');
+                    const tradesVal = document.getElementById('profileTradesVal');
+                    if (ratingVal) ratingVal.textContent = `⭐ ${currentUser.rating}`;
+                    if (tradesVal) tradesVal.textContent = currentUser.trades;
+                }
+            });
+    }
+    
+    if (list.length === 0) {
+        view.innerHTML = '<p style="text-align:center;color:var(--white-50);padding:30px 0;">Aucun avis reçu pour le moment.</p>';
+        return;
+    }
+    
+    view.innerHTML = list.map(r => {
+        const stars = '⭐'.repeat(r.rating);
+        const dateStr = new Date(r.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `
+            <div class="trade-history-item" style="margin-bottom:12px; padding:12px; background:var(--bg-input); border-radius:var(--radius-md); display:flex; justify-content:space-between; align-items:center;">
+                <div style="flex:1; padding-right:12px;">
+                    <strong style="color:var(--white);">${r.from_user_pseudo || 'Utilisateur'}</strong>
+                    <p style="font-size:0.85rem;color:var(--white-70);margin-top:4px;word-break:break-word;">${r.comment || 'Aucun commentaire.'}</p>
+                </div>
+                <div style="text-align:right; flex-shrink:0;">
+                    <div style="color:var(--orange); font-size:0.9rem;">${stars}</div>
+                    <div style="font-size:0.72rem;color:var(--white-30);margin-top:4px;">${dateStr}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openReviewModal(targetUserId, targetUserPseudo) {
+    currentRatingSelection = 5;
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'reviewModal';
+    overlay.innerHTML = `
+    <div class="modal" style="max-width:400px;text-align:center;">
+        <h3 style="color:var(--white);margin-bottom:12px;">⭐ Laisser un avis</h3>
+        <p style="color:var(--white-50);font-size:0.85rem;margin-bottom:20px;">Évaluez votre échange avec <strong>${targetUserPseudo}</strong></p>
+        
+        <div style="display:flex;justify-content:center;gap:10px;margin-bottom:20px;" id="ratingStarsRow">
+            ${[1,2,3,4,5].map(num => `
+                <span class="star-btn" data-num="${num}" style="font-size:1.8rem;cursor:pointer;color:#FFD700;transition:transform 0.1s;display:inline-block;" onclick="setRatingSelection(${num})">⭐</span>
+            `).join('')}
+        </div>
+        
+        <textarea id="reviewComment" placeholder="Laissez un commentaire sur le joueur (rapide, fiable, honnête...)" style="width:100%;height:100px;padding:12px;background:var(--bg-input);border:1.5px solid var(--border);border-radius:var(--radius-md);color:var(--white);font-family:'Inter',sans-serif;outline:none;resize:none;margin-bottom:20px;font-size:0.85rem;"></textarea>
+        
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="closeReviewModal()">Annuler</button>
+            <button class="btn btn-primary" onclick="submitReview('${targetUserId}', '${targetUserPseudo.replace(/'/g, "\\'")}')">Soumettre</button>
+        </div>
+    </div>`;
+    
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.classList.add('active'), 10);
+    setRatingSelection(5);
+}
+
+function closeReviewModal() {
+    const modal = document.getElementById('reviewModal');
+    if (modal) {
+        modal.classList.remove('active');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+function setRatingSelection(num) {
+    currentRatingSelection = num;
+    const stars = document.querySelectorAll('#ratingStarsRow .star-btn');
+    stars.forEach(s => {
+        const starNum = parseInt(s.getAttribute('data-num'));
+        if (starNum <= num) {
+            s.style.opacity = '1';
+            s.style.transform = 'scale(1.15)';
+        } else {
+            s.style.opacity = '0.3';
+            s.style.transform = 'scale(1)';
+        }
+    });
+}
+
+async function submitReview(targetUserId, targetUserPseudo) {
+    const comment = document.getElementById('reviewComment').value.trim();
+    if (!comment) {
+        showToast('⚠️ Veuillez écrire un petit commentaire.');
+        return;
+    }
+    
+    if (!AuraAuth._supabase) {
+        showToast('❌ Supabase non connecté.');
+        return;
+    }
+    
+    try {
+        const { error: insErr } = await AuraAuth._supabase.from('reviews').insert([{
+            from_user_id: currentUser.id,
+            from_user_pseudo: currentUser.pseudo || currentUser.name || 'Utilisateur',
+            to_user_id: targetUserId,
+            rating: currentRatingSelection,
+            comment: comment
+        }]);
+        
+        if (insErr) {
+            if (insErr.code === '42P01') {
+                showToast('❌ Erreur: Table reviews manquante.');
+                return;
+            }
+            throw insErr;
+        }
+        
+        // Calculer la nouvelle moyenne de note
+        const { data: allReviews, error: fetchErr } = await AuraAuth._supabase
+            .from('reviews')
+            .select('rating')
+            .eq('to_user_id', targetUserId);
+            
+        if (!fetchErr && allReviews) {
+            const newTradesCount = allReviews.length;
+            const sumRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
+            const newAvgRating = parseFloat((sumRating / newTradesCount).toFixed(1));
+            
+            // Mettre à jour le profil du vendeur
+            await AuraAuth._supabase.from('profiles').update({
+                rating: newAvgRating,
+                trades: newTradesCount
+            }).eq('id', targetUserId);
+        }
+        
+        showToast('🌟 Avis soumis avec succès !');
+        closeReviewModal();
+        
+        // Mettre à jour localement l'annonce pour refléter la nouvelle note si on est sur la page détail
+        if (currentPage === 'detail' && currentDetailId) {
+            const a = announces.find(ann => ann.id === currentDetailId);
+            if (a && a.sellerId === targetUserId) {
+                const { data: updatedSeller } = await AuraAuth._supabase.from('profiles').select('rating, trades').eq('id', targetUserId).single();
+                if (updatedSeller) {
+                    a.sellerRating = updatedSeller.rating;
+                    a.sellerTrades = updatedSeller.trades;
+                }
+            }
+        }
+        renderApp();
+    } catch (e) {
+        console.error('Submit review error:', e);
+        showToast('❌ Erreur lors de la soumission de l\'avis.');
+    }
 }
 
 init();
