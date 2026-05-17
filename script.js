@@ -28,7 +28,7 @@ let currentUser = AuraAuth.getUser() || {
     pseudo: 'Guest',
     avatar: '?',
     memberSince: '2026',
-    rating: 5.0,
+    rating: 0.0,
     totalAnnounces: 0,
     totalTrades: 0,
     tradeHistory: [],
@@ -389,7 +389,7 @@ function renderDetail(id) {
                             <div class="seller-rating">
 
 
-                                ${icons.star} <span>${a.sellerRating || '5.0'}</span>
+                                ${icons.star} <span>${a.sellerRating !== undefined && a.sellerRating !== null ? parseFloat(a.sellerRating).toFixed(1) : '0.0'}</span>
                                 <span class="dot">·</span>
                                 <span>${a.sellerTrades || 0} échanges</span>
                             </div>
@@ -1825,7 +1825,7 @@ async function loadReceivedReviews() {
         AuraAuth._supabase.from('profiles').select('rating, trades').eq('id', currentUser.id).single()
             .then(({ data }) => {
                 if (data) {
-                    currentUser.rating = data.rating || 5.0;
+                    currentUser.rating = data.rating !== undefined && data.rating !== null ? parseFloat(data.rating).toFixed(1) : '0.0';
                     currentUser.trades = data.trades || 0;
                     localStorage.setItem('aura_user', JSON.stringify(currentUser));
                     const ratingVal = document.getElementById('profileRatingVal');
@@ -1859,8 +1859,26 @@ async function loadReceivedReviews() {
     }).join('');
 }
 
-function openReviewModal(targetUserId, targetUserPseudo) {
+async function openReviewModal(targetUserId, targetUserPseudo) {
     currentRatingSelection = 5;
+    let existingComment = '';
+    
+    if (AuraAuth._supabase) {
+        try {
+            const { data, error } = await AuraAuth._supabase
+                .from('reviews')
+                .select('*')
+                .eq('from_user_id', currentUser.id)
+                .eq('to_user_id', targetUserId)
+                .maybeSingle();
+            if (!error && data) {
+                currentRatingSelection = data.rating;
+                existingComment = data.comment || '';
+            }
+        } catch (e) {
+            console.error('Error fetching existing review:', e);
+        }
+    }
     
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -1876,7 +1894,7 @@ function openReviewModal(targetUserId, targetUserPseudo) {
             `).join('')}
         </div>
         
-        <textarea id="reviewComment" placeholder="Laissez un commentaire sur le joueur (rapide, fiable, honnête...)" style="width:100%;height:100px;padding:12px;background:var(--bg-input);border:1.5px solid var(--border);border-radius:var(--radius-md);color:var(--white);font-family:'Inter',sans-serif;outline:none;resize:none;margin-bottom:20px;font-size:0.85rem;"></textarea>
+        <textarea id="reviewComment" placeholder="Laissez un commentaire sur le joueur (rapide, fiable, honnête...)" style="width:100%;height:100px;padding:12px;background:var(--bg-input);border:1.5px solid var(--border);border-radius:var(--radius-md);color:var(--white);font-family:'Inter',sans-serif;outline:none;resize:none;margin-bottom:20px;font-size:0.85rem;">${existingComment}</textarea>
         
         <div style="display:flex;gap:10px;justify-content:flex-end;">
             <button class="btn btn-secondary" onclick="closeReviewModal()">Annuler</button>
@@ -1886,7 +1904,7 @@ function openReviewModal(targetUserId, targetUserPseudo) {
     
     document.body.appendChild(overlay);
     setTimeout(() => overlay.classList.add('active'), 10);
-    setRatingSelection(5);
+    setRatingSelection(currentRatingSelection);
 }
 
 function closeReviewModal() {
@@ -1925,20 +1943,44 @@ async function submitReview(targetUserId, targetUserPseudo) {
     }
     
     try {
-        const { error: insErr } = await AuraAuth._supabase.from('reviews').insert([{
-            from_user_id: currentUser.id,
-            from_user_pseudo: currentUser.pseudo || currentUser.name || 'Utilisateur',
-            to_user_id: targetUserId,
-            rating: currentRatingSelection,
-            comment: comment
-        }]);
+        // Check if review already exists
+        const { data: existingReview, error: checkErr } = await AuraAuth._supabase
+            .from('reviews')
+            .select('id')
+            .eq('from_user_id', currentUser.id)
+            .eq('to_user_id', targetUserId)
+            .maybeSingle();
+            
+        let saveErr = null;
+        if (!checkErr && existingReview) {
+            // Update existing review
+            const { error } = await AuraAuth._supabase
+                .from('reviews')
+                .update({
+                    rating: currentRatingSelection,
+                    comment: comment,
+                    created_at: new Date().toISOString()
+                })
+                .eq('id', existingReview.id);
+            saveErr = error;
+        } else {
+            // Insert new review
+            const { error } = await AuraAuth._supabase.from('reviews').insert([{
+                from_user_id: currentUser.id,
+                from_user_pseudo: currentUser.pseudo || currentUser.name || 'Utilisateur',
+                to_user_id: targetUserId,
+                rating: currentRatingSelection,
+                comment: comment
+            }]);
+            saveErr = error;
+        }
         
-        if (insErr) {
-            if (insErr.code === '42P01') {
+        if (saveErr) {
+            if (saveErr.code === '42P01') {
                 showToast('❌ Erreur: Table reviews manquante.');
                 return;
             }
-            throw insErr;
+            throw saveErr;
         }
         
         // Calculer la nouvelle moyenne de note
@@ -2005,7 +2047,7 @@ async function loadUserProfilePage(userId) {
                         pseudo: data.pseudo || 'Sans pseudo',
                         picture: data.avatar_url,
                         avatar: (data.pseudo || data.full_name || 'U').charAt(0).toUpperCase(),
-                        rating: data.rating || 5.0,
+                        rating: data.rating !== undefined && data.rating !== null ? parseFloat(data.rating).toFixed(1) : '0.0',
                         trades: data.trades || 0,
                         is_premium: data.is_premium || false,
                         premium_style: data.premium_style || 'anim-gold',
@@ -2042,7 +2084,7 @@ async function loadUserProfilePage(userId) {
             <div class="profile-stats-row" style="margin-top:16px;">
                 <div class="profile-stat"><div class="val">${myAnnounces.length}</div><div class="lbl">Annonces</div></div>
                 <div class="profile-stat"><div class="val" id="profileTradesVal">${profile.trades || 0}</div><div class="lbl">Échanges</div></div>
-                <div class="profile-stat"><div class="val" id="profileRatingVal">⭐ ${profile.rating || 5.0}</div><div class="lbl">Note</div></div>
+                <div class="profile-stat"><div class="val" id="profileRatingVal">⭐ ${profile.rating !== undefined && profile.rating !== null ? parseFloat(profile.rating).toFixed(1) : '0.0'}</div><div class="lbl">Note</div></div>
             </div>
             
             <div style="margin-top:24px;display:flex;justify-content:center;gap:12px;">
