@@ -2002,22 +2002,24 @@ async function submitReview(targetUserId, targetUserPseudo, reviewId = null) {
                 rating: newAvgRating,
                 trades: newTradesCount
             }).eq('id', targetUserId);
+
+            // Mettre également à jour toutes ses annonces en base de données
+            await AuraAuth._supabase.from('announces').update({
+                sellerRating: newAvgRating,
+                sellerTrades: newTradesCount
+            }).eq('sellerId', targetUserId);
+
+            // Mettre à jour toutes ses annonces localement
+            announces.forEach(ann => {
+                if (ann.sellerId === targetUserId) {
+                    ann.sellerRating = newAvgRating;
+                    ann.sellerTrades = newTradesCount;
+                }
+            });
         }
         
         showToast('🌟 Avis soumis avec succès !');
         closeReviewModal();
-        
-        // Mettre à jour localement l'annonce pour refléter la nouvelle note si on est sur la page détail
-        if (currentPage === 'detail' && currentDetailId) {
-            const a = announces.find(ann => ann.id === currentDetailId);
-            if (a && a.sellerId === targetUserId) {
-                const { data: updatedSeller } = await AuraAuth._supabase.from('profiles').select('rating, trades').eq('id', targetUserId).single();
-                if (updatedSeller) {
-                    a.sellerRating = updatedSeller.rating;
-                    a.sellerTrades = updatedSeller.trades;
-                }
-            }
-        }
         renderApp();
     } catch (e) {
         console.error('Submit review error:', e);
@@ -2052,23 +2054,27 @@ async function deleteReview(reviewId, targetUserId) {
                 ? parseFloat((allReviews.reduce((sum, r) => sum + r.rating, 0) / newTradesCount).toFixed(1))
                 : 0.0;
                 
+            // Mettre à jour le profil
             await AuraAuth._supabase.from('profiles').update({
                 rating: newAvgRating,
                 trades: newTradesCount
             }).eq('id', targetUserId);
+
+            // Mettre à jour toutes ses annonces en base de données
+            await AuraAuth._supabase.from('announces').update({
+                sellerRating: newAvgRating,
+                sellerTrades: newTradesCount
+            }).eq('sellerId', targetUserId);
+
+            // Mettre à jour toutes ses annonces localement
+            announces.forEach(ann => {
+                if (ann.sellerId === targetUserId) {
+                    ann.sellerRating = newAvgRating;
+                    ann.sellerTrades = newTradesCount;
+                }
+            });
         }
         
-        // Mettre à jour localement l'annonce pour refléter la nouvelle note si on est sur la page détail
-        if (currentPage === 'detail' && currentDetailId) {
-            const a = announces.find(ann => ann.id === currentDetailId);
-            if (a && a.sellerId === targetUserId) {
-                const { data: updatedSeller } = await AuraAuth._supabase.from('profiles').select('rating, trades').eq('id', targetUserId).single();
-                if (updatedSeller) {
-                    a.sellerRating = updatedSeller.rating;
-                    a.sellerTrades = updatedSeller.trades;
-                }
-            }
-        }
         renderApp();
     } catch (e) {
         console.error('Delete review error:', e);
