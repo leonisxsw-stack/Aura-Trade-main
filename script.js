@@ -1869,11 +1869,11 @@ async function openReviewModal(targetUserId, targetUserPseudo) {
                 .from('reviews')
                 .select('*')
                 .eq('from_user_id', currentUser.id)
-                .eq('to_user_id', targetUserId)
-                .maybeSingle();
-            if (!error && data) {
-                currentRatingSelection = data.rating;
-                existingComment = data.comment || '';
+                .eq('to_user_id', targetUserId);
+            const existingReview = data && data.length > 0 ? data[0] : null;
+            if (!error && existingReview) {
+                currentRatingSelection = existingReview.rating;
+                existingComment = existingReview.comment || '';
             }
         } catch (e) {
             console.error('Error fetching existing review:', e);
@@ -1944,13 +1944,13 @@ async function submitReview(targetUserId, targetUserPseudo) {
     
     try {
         // Check if review already exists
-        const { data: existingReview, error: checkErr } = await AuraAuth._supabase
+        const { data, error: checkErr } = await AuraAuth._supabase
             .from('reviews')
             .select('id')
             .eq('from_user_id', currentUser.id)
-            .eq('to_user_id', targetUserId)
-            .maybeSingle();
+            .eq('to_user_id', targetUserId);
             
+        const existingReview = data && data.length > 0 ? data[0] : null;
         let saveErr = null;
         if (!checkErr && existingReview) {
             // Update existing review
