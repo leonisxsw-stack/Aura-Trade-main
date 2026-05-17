@@ -804,13 +804,15 @@ async function adminShowUsers() {
     view.innerHTML = `
         <h3 class="section-title">Utilisateurs inscrits (${users.length} total, ${onlineUsers} en ligne récemment)</h3>
         <div style="max-height:400px;overflow-y:auto;">
-            ${users.map(u => `
+            ${users.map(u => {
+                const unreadSupportCount = messages.filter(m => m.fromUserId === u.id && m.toUserId === 'aura-support' && !m.read).length;
+                return `
                 <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <strong style="color:var(--white);">${u.pseudo || 'Sans pseudo'}</strong>
                         <div style="font-size:0.8rem;color:var(--white-50);">${u.email || 'Email masqué'}</div>
                     </div>
-                    <div style="display:flex; gap:8px;">
+                    <div style="display:flex; gap:8px; align-items:center;">
                         <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}', '${u.pseudo}')">Renommer</button>
                         ${u.is_premium ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminRevokePremium('${u.id}')">Retirer Premium</button>`
                             : `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminGrantPremium('${u.id}')">⭐ Donner Premium</button>`}
@@ -818,11 +820,14 @@ async function adminShowUsers() {
                             u.is_admin ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminRevokeAdmin('${u.id}')">Retirer Admin</button>`
                             : `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminGrantAdmin('${u.id}')">👑 Donner Admin</button>`
                         ) : ''}
-                        <button class="btn btn-secondary btn-sm" onclick="openSupportChat('${u.id}', '${(u.pseudo || 'Sans pseudo').replace(/'/g, "\\'")}')">Message</button>
+                        <button class="btn btn-secondary btn-sm" style="display:flex;align-items:center;gap:6px;" onclick="openSupportChat('${u.id}', '${(u.pseudo || 'Sans pseudo').replace(/'/g, "\\'")}')">
+                            Message
+                            ${unreadSupportCount > 0 ? `<span style="background:var(--orange); color:white; font-size:0.7rem; font-weight:800; min-width:16px; height:16px; padding:0 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadSupportCount}</span>` : ''}
+                        </button>
                         <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="adminBan('${u.id}')">Bannir</button>
                     </div>
                 </div>
-            `).join('')}
+            `;}).join('')}
         </div>
     `;
 }
@@ -836,6 +841,18 @@ async function adminEditPseudo(userId, currentPseudo) {
 }
 
 function openSupportChat(playerId, playerPseudo) {
+    // Marquer les messages de support comme lus localement et sur Supabase
+    const unreadMsgs = messages.filter(m => m.fromUserId === playerId && m.toUserId === 'aura-support' && !m.read);
+    if (unreadMsgs.length > 0) {
+        unreadMsgs.forEach(m => m.read = true);
+        updateBadges();
+        adminShowUsers(); // Retirer instantanément le chiffre badge du bouton
+        if (AuraAuth._supabase) {
+            AuraAuth._supabase.from('messages').update({ read: true }).eq('fromUserId', playerId).eq('toUserId', 'aura-support')
+                .then(({error}) => { if (error) console.error('Failed to mark support messages as read:', error); });
+        }
+    }
+
     const conv = messages.filter(m =>
         (m.fromUserId === 'aura-support' && m.toUserId === playerId) ||
         (m.toUserId === 'aura-support' && m.fromUserId === playerId)
@@ -1428,6 +1445,17 @@ async function sendContactMsg(announceId) {
 
 
 function openChat(otherId) {
+    // Marquer les messages reçus comme lus localement et sur Supabase
+    const unreadMsgs = messages.filter(m => m.fromUserId === otherId && m.toUserId === currentUser.id && !m.read);
+    if (unreadMsgs.length > 0) {
+        unreadMsgs.forEach(m => m.read = true);
+        updateBadges();
+        if (AuraAuth._supabase) {
+            AuraAuth._supabase.from('messages').update({ read: true }).eq('fromUserId', otherId).eq('toUserId', currentUser.id)
+                .then(({error}) => { if (error) console.error('Failed to mark messages as read:', error); });
+        }
+    }
+
     const conv = messages.filter(m =>
         (m.fromUserId === currentUser.id && m.toUserId === otherId) ||
         (m.toUserId === currentUser.id && m.fromUserId === otherId)
