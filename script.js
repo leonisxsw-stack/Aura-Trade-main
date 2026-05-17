@@ -1855,9 +1855,14 @@ async function loadReceivedReviews() {
                     <div style="color:var(--orange); font-size:0.9rem;">${stars}</div>
                     <div style="font-size:0.72rem;color:var(--white-30);margin-top:4px;">${dateStr}</div>
                     ${isMyReview ? `
-                        <button class="btn btn-secondary btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); margin-top:6px; cursor:pointer;" onclick="openReviewModal('${r.to_user_id}', 'Ce joueur', '${r.id}', ${r.rating}, '${(r.comment || '').replace(/'/g, "\\'")}')">
-                            ✏️ Modifier
-                        </button>
+                        <div style="display:flex; gap:6px; margin-top:6px;">
+                            <button class="btn btn-secondary btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); cursor:pointer;" onclick="openReviewModal('${r.to_user_id}', 'Ce joueur', '${r.id}', ${r.rating}, '${(r.comment || '').replace(/'/g, "\\'")}')">
+                                ✏️ Modifier
+                            </button>
+                            <button class="btn btn-ghost btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); color:var(--danger); cursor:pointer;" onclick="deleteReview('${r.id}', '${r.to_user_id}')">
+                                🗑️ Supprimer
+                            </button>
+                        </div>
                     ` : ''}
                 </div>
             </div>
@@ -2020,6 +2025,57 @@ async function submitReview(targetUserId, targetUserPseudo, reviewId = null) {
     }
 }
 
+async function deleteReview(reviewId, targetUserId) {
+    if (!confirm('Voulez-vous vraiment supprimer cet avis ?')) return;
+    
+    if (!AuraAuth._supabase) return;
+    
+    try {
+        const { error: delErr } = await AuraAuth._supabase
+            .from('reviews')
+            .delete()
+            .eq('id', reviewId);
+            
+        if (delErr) throw delErr;
+        
+        showToast('🗑️ Avis supprimé avec succès.');
+        
+        // Recalculer la note moyenne et le nombre d'échanges
+        const { data: allReviews, error: fetchErr } = await AuraAuth._supabase
+            .from('reviews')
+            .select('rating')
+            .eq('to_user_id', targetUserId);
+            
+        if (!fetchErr && allReviews) {
+            const newTradesCount = allReviews.length;
+            const newAvgRating = newTradesCount > 0 
+                ? parseFloat((allReviews.reduce((sum, r) => sum + r.rating, 0) / newTradesCount).toFixed(1))
+                : 0.0;
+                
+            await AuraAuth._supabase.from('profiles').update({
+                rating: newAvgRating,
+                trades: newTradesCount
+            }).eq('id', targetUserId);
+        }
+        
+        // Mettre à jour localement l'annonce pour refléter la nouvelle note si on est sur la page détail
+        if (currentPage === 'detail' && currentDetailId) {
+            const a = announces.find(ann => ann.id === currentDetailId);
+            if (a && a.sellerId === targetUserId) {
+                const { data: updatedSeller } = await AuraAuth._supabase.from('profiles').select('rating, trades').eq('id', targetUserId).single();
+                if (updatedSeller) {
+                    a.sellerRating = updatedSeller.rating;
+                    a.sellerTrades = updatedSeller.trades;
+                }
+            }
+        }
+        renderApp();
+    } catch (e) {
+        console.error('Delete review error:', e);
+        showToast('❌ Erreur lors de la suppression de l\'avis.');
+    }
+}
+
 // ============================================================
 // Aura Trade — Public Profiles system
 // ============================================================
@@ -2170,9 +2226,14 @@ async function loadReceivedReviewsForUser(targetUserId) {
                     <div style="color:var(--orange); font-size:0.9rem;">${stars}</div>
                     <div style="font-size:0.72rem;color:var(--white-30);margin-top:4px;">${dateStr}</div>
                     ${isMyReview ? `
-                        <button class="btn btn-secondary btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); margin-top:6px; cursor:pointer;" onclick="openReviewModal('${r.to_user_id}', 'Ce joueur', '${r.id}', ${r.rating}, '${(r.comment || '').replace(/'/g, "\\'")}')">
-                            ✏️ Modifier
-                        </button>
+                        <div style="display:flex; gap:6px; margin-top:6px;">
+                            <button class="btn btn-secondary btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); cursor:pointer;" onclick="openReviewModal('${r.to_user_id}', 'Ce joueur', '${r.id}', ${r.rating}, '${(r.comment || '').replace(/'/g, "\\'")}')">
+                                ✏️ Modifier
+                            </button>
+                            <button class="btn btn-ghost btn-xs" style="padding:2px 8px; font-size:0.7rem; border-radius:var(--radius-sm); color:var(--danger); cursor:pointer;" onclick="deleteReview('${r.id}', '${r.to_user_id}')">
+                                🗑️ Supprimer
+                            </button>
+                        </div>
                     ` : ''}
                 </div>
             </div>
