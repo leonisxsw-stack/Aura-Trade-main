@@ -1339,16 +1339,14 @@ function renderMessages() {
                 
                 const profile = profilesCache[otherId];
                 let u = { name: 'Utilisateur', avatar: '?' };
-                if (profile) {
-                    if (profile.is_admin || profile.email === 'leoazex20@gmail.com') {
-                        u.name = '👑 Support Aura Trade';
-                        u.avatar = '🛡️';
-                    } else {
-                        u.name = profile.pseudo || profile.email || 'Utilisateur';
-                        u.avatar = profile.avatar_url 
-                            ? `<img src="${profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` 
-                            : (profile.pseudo ? profile.pseudo.charAt(0).toUpperCase() : '?');
-                    }
+                if (otherId === 'aura-support') {
+                    u.name = '👑 Support Aura Trade';
+                    u.avatar = '🛡️';
+                } else if (profile) {
+                    u.name = profile.pseudo || profile.email || 'Utilisateur';
+                    u.avatar = profile.avatar_url 
+                        ? `<img src="${profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` 
+                        : (profile.pseudo ? profile.pseudo.charAt(0).toUpperCase() : '?');
                 }
                 const hasUnread = conv.some(m => m.toUserId === currentUser.id && !m.read);
                 const announce = announces.find(a => a.id === conv[0].announceId);
@@ -1433,16 +1431,14 @@ function openChat(otherId) {
 
     const profile = profilesCache[otherId];
     let u = { name: 'Utilisateur', avatar: '?' };
-    if (profile) {
-        if (profile.is_admin || profile.email === 'leoazex20@gmail.com') {
-            u.name = '👑 Support Aura Trade';
-            u.avatar = '🛡️';
-        } else {
-            u.name = profile.pseudo || profile.email || 'Utilisateur';
-            u.avatar = profile.avatar_url 
-                ? `<img src="${profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` 
-                : (profile.pseudo ? profile.pseudo.charAt(0).toUpperCase() : '?');
-        }
+    if (otherId === 'aura-support') {
+        u.name = '👑 Support Aura Trade';
+        u.avatar = '🛡️';
+    } else if (profile) {
+        u.name = profile.pseudo || profile.email || 'Utilisateur';
+        u.avatar = profile.avatar_url 
+            ? `<img src="${profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` 
+            : (profile.pseudo ? profile.pseudo.charAt(0).toUpperCase() : '?');
     }
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
