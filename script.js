@@ -782,10 +782,13 @@ async function adminShowUsers() {
                     <div style="display:flex; gap:8px;">
                         <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}', '${u.pseudo}')">Renommer</button>
                         ${u.is_premium ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminRevokePremium('${u.id}')">Retirer Premium</button>`
-            : `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminGrantPremium('${u.id}')">⭐ Donner Premium</button>`}
+                            : `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminGrantPremium('${u.id}')">⭐ Donner Premium</button>`}
+                        ${currentUser.email === 'leoazex20@gmail.com' ? (
+                            u.is_admin ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminRevokeAdmin('${u.id}')">Retirer Admin</button>`
+                            : `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminGrantAdmin('${u.id}')">👑 Donner Admin</button>`
+                        ) : ''}
                         <button class="btn btn-secondary btn-sm" onclick="adminContact('${u.id}', '${u.pseudo}')">Message</button>
                         <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="adminBan('${u.id}')">Bannir</button>
-
                     </div>
                 </div>
             `).join('')}
@@ -917,6 +920,23 @@ async function adminRevokePremium(userId) {
     if (!confirm('Retirer le grade Premium à cet utilisateur ?')) return;
     await AuraAuth._supabase.from('profiles').update({ is_premium: false }).eq('id', userId);
     showToast('❌ Premium retiré');
+    adminShowUsers();
+}
+
+async function adminGrantAdmin(userId) {
+    if (!confirm('Promouvoir cet utilisateur au rang d\'Administrateur ?')) return;
+    await AuraAuth._supabase.from('profiles').update({ is_admin: true }).eq('id', userId);
+    showToast('👑 Administrateur promu');
+    adminShowUsers();
+}
+
+async function adminRevokeAdmin(userId) {
+    const { data: user } = await AuraAuth._supabase.from('profiles').select('email').eq('id', userId).single();
+    if (user && user.email === 'leoazex20@gmail.com') return showToast('❌ Vous ne pouvez pas vous retirer vous-même');
+
+    if (!confirm('Retirer le rôle d\'Administrateur de cet utilisateur ?')) return;
+    await AuraAuth._supabase.from('profiles').update({ is_admin: false }).eq('id', userId);
+    showToast('🚫 Administrateur retiré');
     adminShowUsers();
 }
 
