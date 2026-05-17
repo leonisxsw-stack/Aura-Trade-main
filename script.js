@@ -77,6 +77,14 @@ function refreshUserData() {
                                 currentUser.picture = data.avatar_url;
                                 updated = true;
                             }
+                            if (data.rating !== undefined && data.rating !== null && parseFloat(currentUser.rating) !== parseFloat(data.rating)) {
+                                currentUser.rating = parseFloat(data.rating).toFixed(1);
+                                updated = true;
+                            }
+                            if (currentUser.trades !== data.trades) {
+                                currentUser.trades = data.trades || 0;
+                                updated = true;
+                            }
 
                             if (updated) {
                                 localStorage.setItem('aura_user', JSON.stringify(currentUser));
@@ -2094,29 +2102,32 @@ async function loadUserProfilePage(userId) {
     if (!container) return;
     
     let profile = null;
-    if (isOwnProfile) {
-        profile = currentUser;
-    } else {
-        if (AuraAuth._supabase) {
-            try {
-                const { data, error } = await AuraAuth._supabase.from('profiles').select('*').eq('id', targetUserId).single();
-                if (!error && data) {
-                    profile = {
-                        id: data.id,
-                        name: data.full_name || 'Utilisateur',
-                        pseudo: data.pseudo || 'Sans pseudo',
-                        picture: data.avatar_url,
-                        avatar: (data.pseudo || data.full_name || 'U').charAt(0).toUpperCase(),
-                        rating: data.rating !== undefined && data.rating !== null ? parseFloat(data.rating).toFixed(1) : '0.0',
-                        trades: data.trades || 0,
-                        is_premium: data.is_premium || false,
-                        premium_style: data.premium_style || 'anim-gold',
-                        memberSince: data.created_at ? new Date(data.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : 'récemment'
-                    };
+    if (AuraAuth._supabase) {
+        try {
+            const { data, error } = await AuraAuth._supabase.from('profiles').select('*').eq('id', targetUserId).single();
+            if (!error && data) {
+                profile = {
+                    id: data.id,
+                    name: data.full_name || 'Utilisateur',
+                    pseudo: data.pseudo || 'Sans pseudo',
+                    picture: data.avatar_url,
+                    avatar: (data.pseudo || data.full_name || 'U').charAt(0).toUpperCase(),
+                    rating: data.rating !== undefined && data.rating !== null ? parseFloat(data.rating).toFixed(1) : '0.0',
+                    trades: data.trades || 0,
+                    is_premium: data.is_premium || false,
+                    premium_style: data.premium_style || 'anim-gold',
+                    memberSince: data.created_at ? new Date(data.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : 'récemment'
+                };
+                
+                // Mettre à jour localement les stats du currentUser si c'est notre propre profil pour synchroniser les pages
+                if (isOwnProfile) {
+                    currentUser.rating = profile.rating;
+                    currentUser.trades = profile.trades;
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
                 }
-            } catch (e) {
-                console.error('Failed to load external profile:', e);
             }
+        } catch (e) {
+            console.error('Failed to load profile from database:', e);
         }
     }
     
