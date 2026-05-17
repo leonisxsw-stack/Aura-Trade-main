@@ -748,6 +748,9 @@ function renderAdmin() {
     // Simulate some stats if DB fetch is slow or unavailable for all profiles
     const totalAnnounces = announces.length;
 
+    // Charger automatiquement la liste des utilisateurs au chargement du panel
+    setTimeout(adminShowUsers, 50);
+
     return `
     <div class="container">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
@@ -755,27 +758,16 @@ function renderAdmin() {
             <button class="btn btn-secondary" onclick="navigate('settings')">Retour</button>
         </div>
 
-        <div class="grid-3" style="margin-bottom:24px;">
-            <div class="sidebar-card"><div style="color:var(--white-50);">Total Annonces</div><div style="font-size:1.5rem;font-weight:800;">${totalAnnounces}</div></div>
-            <div class="sidebar-card">
-                <div style="color:var(--white-50);">Gérer Utilisateurs</div>
-                <button class="btn btn-secondary btn-sm mt-2" onclick="adminShowUsers()">Ouvrir</button>
-            </div>
-            <div class="sidebar-card"><div style="color:var(--white-50);">Modération Annonces</div><button class="btn btn-secondary btn-sm mt-2" onclick="adminShowAnnounces()">Ouvrir</button></div>
-        </div>
-        
-        <div class="sidebar-card" style="margin-bottom:24px;border-color:#A23AFF;">
-            <h3 class="section-title" style="color:#A23AFF;">Donner Premium par Email</h3>
-            <div style="display:flex;gap:10px;">
-                <input type="text" id="adminGrantEmail" placeholder="adresse@email.com" style="flex:1;">
-                <button class="btn btn-primary" style="background:#A23AFF;border:none;" onclick="adminGrantPremiumByEmail()">Activer Premium</button>
+        <div style="display:flex; gap:16px; margin-bottom:24px;">
+            <div class="sidebar-card" style="flex:1;"><div style="color:var(--white-50);">Total Annonces</div><div style="font-size:1.5rem;font-weight:800;">${totalAnnounces}</div></div>
+            <div class="sidebar-card" style="flex:1;">
+                <div style="color:var(--white-50);">Modération Annonces</div>
+                <button class="btn btn-secondary btn-sm mt-2" onclick="adminShowAnnounces()">Ouvrir</button>
             </div>
         </div>
-
-
 
         <div id="adminView" class="sidebar-card">
-            <p style="color:var(--white-50);">Sélectionnez une action ci-dessus.</p>
+            <p style="color:var(--white-50);">Chargement des utilisateurs...</p>
         </div>
 
     </div>
@@ -784,6 +776,7 @@ function renderAdmin() {
 
 async function adminShowUsers() {
     const view = document.getElementById('adminView');
+    if (!view) return;
     view.innerHTML = '<p>Chargement des utilisateurs...</p>';
     if (!AuraAuth._supabase) return view.innerHTML = '<p>Erreur: Supabase non connecté.</p>';
 
