@@ -130,7 +130,15 @@ const games = [
 
 let announces = [];
 let messages = [];
-let profilesCache = {};
+let profilesCache = {
+    'aura-support': {
+        id: 'aura-support',
+        pseudo: '👑 Support Aura Trade',
+        avatar_url: null,
+        is_admin: true,
+        email: 'support@auratrade.com'
+    }
+};
 
 let nextId = 1;
 let currentPage = 'home';
@@ -807,7 +815,7 @@ async function adminShowUsers() {
                             u.is_admin ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminRevokeAdmin('${u.id}')">Retirer Admin</button>`
                             : `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminGrantAdmin('${u.id}')">👑 Donner Admin</button>`
                         ) : ''}
-                        <button class="btn btn-secondary btn-sm" onclick="adminContact('${u.id}', '${u.pseudo}')">Message</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openSupportChat('${u.id}', '${(u.pseudo || 'Sans pseudo').replace(/'/g, "\\'")}')">Message</button>
                         <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="adminBan('${u.id}')">Bannir</button>
                     </div>
                 </div>
@@ -824,16 +832,71 @@ async function adminEditPseudo(userId, currentPseudo) {
     adminShowUsers();
 }
 
-async function adminContact(userId, pseudo) {
-    const m = prompt('Message pour ' + pseudo + ' :');
-    if (!m) return;
-    await AuraAuth._supabase.from('messages').insert([{
-        fromUserId: currentUser.id,
-        toUserId: userId,
-        content: "[Message de l'Admin] " + m,
-        date: new Date().toISOString()
-    }]);
-    showToast('✉️ Message envoyé');
+function openSupportChat(playerId, playerPseudo) {
+    const conv = messages.filter(m =>
+        (m.fromUserId === 'aura-support' && m.toUserId === playerId) ||
+        (m.toUserId === 'aura-support' && m.fromUserId === playerId)
+    ).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'activeModal';
+    overlay.innerHTML = `
+    <div class="modal" style="max-width:540px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div class="avatar-sm">🛡️</div>
+            <strong style="color:var(--white);">Support Aura Trade <span style="color:var(--white-50);font-weight:400;">(Chat avec ${playerPseudo})</span></strong>
+        </div>
+        <div class="msg-thread" id="chatThread">
+            ${conv.map(m => `
+                <div class="msg-bubble ${m.fromUserId === 'aura-support' ? 'sent' : 'received'}">
+                    ${m.content}
+                    <div class="time">${new Date(m.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+            `).join('')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px;">
+            <input type="text" id="chatInput" placeholder="Écris ton message en tant que Support..." style="flex:1;padding:11px 14px;background:var(--bg-input);border:1.5px solid var(--border);border-radius:var(--radius-full);color:var(--white);font-family:'Inter',sans-serif;outline:none;">
+            <button class="btn btn-primary" onclick="sendSupportChatMsg('${playerId}', '${playerPseudo.replace(/'/g, "\\'")}')">${icons.send}</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+    setTimeout(() => { const t = document.getElementById('chatThread'); if (t) t.scrollTop = t.scrollHeight; }, 150);
+}
+
+async function sendSupportChatMsg(playerId, playerPseudo) {
+    const input = document.getElementById('chatInput');
+    const content = input?.value.trim();
+    if (!content) return;
+
+    const newMsg = {
+        announceId: 1,
+        fromUserId: 'aura-support',
+        toUserId: playerId,
+        content: content,
+        date: new Date().toISOString(),
+        read: false
+    };
+
+    if (AuraAuth._supabase) {
+        try {
+            const { data, error } = await AuraAuth._supabase.from('messages').insert([newMsg]).select();
+            if (error) throw error;
+            messages.push(data[0]);
+            closeModal();
+            openSupportChat(playerId, playerPseudo);
+        } catch (e) {
+            console.error('Support Chat send failed:', e);
+            messages.push(newMsg);
+            closeModal();
+            openSupportChat(playerId, playerPseudo);
+        }
+    } else {
+        messages.push(newMsg);
+        closeModal();
+        openSupportChat(playerId, playerPseudo);
+    }
 }
 
 async function adminBan(userId) {
@@ -1258,6 +1321,10 @@ function renderMessages() {
     messages.forEach(m => { if (m.toUserId === currentUser.id) m.read = true; });
     const conversations = {};
     messages.forEach(m => {
+        // Masquer les conversations support de la boîte mail privée de l'administrateur
+        if ((currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com') && (m.fromUserId === 'aura-support' || m.toUserId === 'aura-support')) {
+            return;
+        }
         const otherId = m.fromUserId === currentUser.id ? m.toUserId : m.fromUserId;
         if (!conversations[otherId]) conversations[otherId] = [];
         conversations[otherId].push(m);
@@ -1594,10 +1661,13 @@ async function fetchAnnounces() {
 async function fetchMessages() {
     if (!AuraAuth._supabase || !currentUser.id) return;
     try {
-        const { data, error } = await AuraAuth._supabase.from('messages')
-            .select('*')
-            .or(`fromUserId.eq.${currentUser.id},toUserId.eq.${currentUser.id}`)
-            .order('date', { ascending: false });
+        let query = AuraAuth._supabase.from('messages').select('*');
+        if (currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com') {
+            query = query.or(`fromUserId.eq.${currentUser.id},toUserId.eq.${currentUser.id},fromUserId.eq.aura-support,toUserId.eq.aura-support`);
+        } else {
+            query = query.or(`fromUserId.eq.${currentUser.id},toUserId.eq.${currentUser.id}`);
+        }
+        const { data, error } = await query.order('date', { ascending: false });
         if (error) throw error;
 
         // Pré-chargement des profils pour afficher le vrai pseudo et la vraie photo
@@ -1629,15 +1699,28 @@ async function fetchMessages() {
             // Auto-refresh open chat without closing
             const chatThread = document.getElementById('chatThread');
             if (chatThread) {
-                const btn = document.querySelector('button[onclick^="sendChatMsg"]');
+                const btn = document.querySelector('button[onclick^="sendChatMsg"], button[onclick^="sendSupportChatMsg"]');
                 if (btn) {
-                    const otherId = btn.getAttribute('onclick').match(/'([^']+)'/)[1];
+                    const onclickAttr = btn.getAttribute('onclick');
+                    const otherId = onclickAttr.match(/'([^']+)'/)[1];
+                    const isSupport = onclickAttr.startsWith('sendSupportChatMsg');
                     const isAtBottom = chatThread.scrollHeight - chatThread.scrollTop <= chatThread.clientHeight + 10;
 
-                    const conv = messages.filter(m => (m.fromUserId === currentUser.id && m.toUserId === otherId) || (m.toUserId === currentUser.id && m.fromUserId === otherId)).sort((a, b) => new Date(a.date) - new Date(b.date));
+                    let conv = [];
+                    if (isSupport) {
+                        conv = messages.filter(m => 
+                            (m.fromUserId === 'aura-support' && m.toUserId === otherId) || 
+                            (m.toUserId === 'aura-support' && m.fromUserId === otherId)
+                        ).sort((a, b) => new Date(a.date) - new Date(b.date));
+                    } else {
+                        conv = messages.filter(m => 
+                            (m.fromUserId === currentUser.id && m.toUserId === otherId) || 
+                            (m.toUserId === currentUser.id && m.fromUserId === otherId)
+                        ).sort((a, b) => new Date(a.date) - new Date(b.date));
+                    }
 
                     chatThread.innerHTML = conv.map(m => `
-                        <div class="msg-bubble ${m.fromUserId === currentUser.id ? 'sent' : 'received'}">
+                        <div class="msg-bubble ${isSupport ? (m.fromUserId === 'aura-support' ? 'sent' : 'received') : (m.fromUserId === currentUser.id ? 'sent' : 'received')}">
                             ${m.content}
                             <div class="time">${new Date(m.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
