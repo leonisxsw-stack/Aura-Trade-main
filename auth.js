@@ -5,8 +5,8 @@
 const SESSION_KEY = 'aura_user';
 
 // Supabase Configuration
-const SUPABASE_URL = 'https://yudjbsbtbllnqaxezcjx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1ZGpic2J0YmxsbnFheGV6Y2p4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NjMxMjIsImV4cCI6MjA5NDMzOTEyMn0.u97tioJzQHIcMD8uVihJWV0wFA69ay5R2G_M3JBc0JI';
+const SUPABASE_URL = 'https://dpnmafmlwfetaadvyzeu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwbm1hZm1sd2ZldGFhZHZ5emV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMTkzMDcsImV4cCI6MjA5NDU5NTMwN30.RpmxuMAPh3W79weyLS5VroTYgeFkjo8TAkw2QKkqF-8';
 
 // Initialize Supabase Client
 let _supabase = null;
