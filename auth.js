@@ -5,6 +5,17 @@
 const SESSION_KEY = 'aura_user';
 
 // Supabase Configuration
+// Vérifie si on est dans le popup OAuth qui a été redirigé
+if (window.location.search.includes('discordOAuth=true')) {
+    const params = new URLSearchParams(window.location.search);
+    const discord = params.get('discord');
+    const isBooster = params.get('isBooster') === 'true';
+    if (window.opener) {
+        window.opener.postMessage({ auraDiscordOAuth: true, discord: discord, isBooster: isBooster }, '*');
+    }
+    window.close();
+}
+
 const SUPABASE_URL = 'https://dpnmafmlwfetaadvyzeu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwbm1hZm1sd2ZldGFhZHZ5emV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMTkzMDcsImV4cCI6MjA5NDU5NTMwN30.RpmxuMAPh3W79weyLS5VroTYgeFkjo8TAkw2QKkqF-8';
 
