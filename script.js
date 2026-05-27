@@ -980,7 +980,7 @@ function openDiscordOAuthLink() {
     const origin = (() => { try { return new URL(base).origin; } catch (e) { return null; } })();
 
     function onMessage(e) {
-        if (origin && e.origin !== origin) return;
+        if (origin && e.origin !== origin && e.origin !== window.location.origin) return;
         const d = e.data;
         if (d && d.auraDiscordOAuth) {
             if (d.discord) {
