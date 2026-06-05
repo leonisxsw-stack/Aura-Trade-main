@@ -1521,6 +1521,10 @@ body {
     .bottom-nav {
         display: flex !important;
     }
+
+    .main {
+        padding-bottom: 110px !important;
+    }
 }
 
 /* PREMIUM STYLES */
