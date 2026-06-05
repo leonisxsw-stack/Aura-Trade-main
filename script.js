@@ -1174,12 +1174,26 @@ async function adminShowUsers() {
             ${users.map(u => {
         const unreadSupportCount = messages.filter(m => m.fromUserId === u.id && m.toUserId === 'aura-support' && !m.read).length;
         const searchData = escapeHtmlJsString(`${u.pseudo || ''} ${u.email || ''} ${u.id}`);
+        
+        let sanctionBadge = '';
+        if (u.banned) {
+            if (u.banned_until) {
+                const untilStr = new Date(u.banned_until).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                sanctionBadge = `<span style="background:rgba(255,107,43,0.15); border:1px solid rgba(255,107,43,0.3); color:var(--orange); font-size:0.75rem; font-weight:700; padding:2px 8px; border-radius:6px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">⏳ Ban → ${untilStr}</span>`;
+            } else {
+                sanctionBadge = `<span style="background:rgba(255,69,58,0.15); border:1px solid rgba(255,69,58,0.3); color:#FF453A; font-size:0.75rem; font-weight:700; padding:2px 8px; border-radius:6px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">🚫 Banni Définitif</span>`;
+            }
+        } else if (u.pending_warning) {
+            sanctionBadge = `<span style="background:rgba(255,214,10,0.15); border:1px solid rgba(255,214,10,0.3); color:#FFD60A; font-size:0.75rem; font-weight:700; padding:2px 8px; border-radius:6px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">⚠️ Averti</span>`;
+        }
+
         return `
                 <div class="admin-user-row" data-searchable="${searchData}" style="padding:14px; background:rgba(255,255,255,0.02); border:1px solid var(--border-light); border-radius:var(--radius-md); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; transition:var(--transition);">
                     <div style="flex:1; min-width:200px;">
                         <strong style="color:var(--white); display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px; font-size:1.05rem;">
                             ${u.pseudo || 'Sans pseudo'}
                             ${renderUserBadges(u)}
+                            ${sanctionBadge}
                         </strong>
                         <div style="font-size:0.75rem;color:var(--white-50); margin-top:4px; font-family:monospace; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px; display:inline-block;">ID: ${u.id}</div>
                         <div style="font-size:0.8rem;color:var(--white-70); margin-top:4px;">${u.email === 'leoazex20@gmail.com' ? 'Email masqué' : (u.email || 'Email masqué')}</div>
@@ -1526,8 +1540,16 @@ async function checkCurrentUserSanctions() {
 
         // ---- AVERTISSEMENT ----
         if (data.pending_warning) {
-            const warn = JSON.parse(data.pending_warning);
-            showSanctionOverlay('warn', { reason: warn.reason });
+            let warn = data.pending_warning;
+            if (typeof warn === 'string') {
+                try {
+                    warn = JSON.parse(warn);
+                } catch(e) {
+                    warn = { reason: warn };
+                }
+            }
+            const warnReason = warn?.reason || (typeof warn === 'string' ? warn : 'Aucune raison spécifiée.');
+            showSanctionOverlay('warn', { reason: warnReason });
             // Clear it so it only shows once
             await AuraAuth._supabase.from('profiles').update({ pending_warning: null }).eq('id', currentUser.id);
             return;
@@ -1537,8 +1559,16 @@ async function checkCurrentUserSanctions() {
         if (data.kick_token && data.kick_token !== _lastKickToken) {
             if (_lastKickToken !== null) {
                 // It changed = a kick was applied
-                const kickData = data.pending_kick ? JSON.parse(data.pending_kick) : { reason: 'Aucune raison spécifiée.' };
-                showSanctionOverlay('kick', { reason: kickData.reason });
+                let kickData = data.pending_kick;
+                if (typeof kickData === 'string') {
+                    try {
+                        kickData = JSON.parse(kickData);
+                    } catch(e) {
+                        kickData = { reason: kickData };
+                    }
+                }
+                const kickReason = kickData?.reason || (typeof kickData === 'string' ? kickData : 'Aucune raison spécifiée.');
+                showSanctionOverlay('kick', { reason: kickReason });
                 // Clear kick token after showing
                 await AuraAuth._supabase.from('profiles').update({ kick_token: null, pending_kick: null }).eq('id', currentUser.id);
                 setTimeout(() => { AuraAuth.logOut(); window.location.href = 'login.html'; }, 6000);

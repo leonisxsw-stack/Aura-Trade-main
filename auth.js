@@ -44,6 +44,18 @@ async function saveSession(payload) {
         } catch (e) { }
     }
 
+    // Check if user is banned
+    if (existingProfile && existingProfile.banned) {
+        if (existingProfile.banned_until) {
+            const until = new Date(existingProfile.banned_until).getTime();
+            if (Date.now() < until) {
+                throw new Error(`SUSPENDU:${existingProfile.ban_reason || 'Aucune raison spécifiée.'}:${existingProfile.banned_until}`);
+            }
+        } else {
+            throw new Error(`BANNI:${existingProfile.ban_reason || 'Aucune raison spécifiée.'}`);
+        }
+    }
+
     const user = {
         id: payload.sub,
         name: payload.name,
@@ -142,8 +154,12 @@ function initGoogleAuth({ onSuccess, onError } = {}) {
         callback: async (response) => {
             const payload = parseJwt(response.credential);
             if (!payload) { onError?.('Token invalide'); return; }
-            const user = await saveSession(payload);
-            onSuccess?.(user);
+            try {
+                const user = await saveSession(payload);
+                onSuccess?.(user);
+            } catch (err) {
+                onError?.(err.message || err);
+            }
         },
         auto_select: false,
     });

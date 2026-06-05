@@ -170,6 +170,9 @@
             <h1>Aura Trade</h1>
             <p class="subtitle">La plateforme de trading nouvelle génération pour Roblox. Connectez-vous pour commencer à échanger.</p>
             
+            <!-- Login Error Alert -->
+            <div id="loginError" style="display:none; background:rgba(255, 69, 58, 0.1); border:1.5px solid rgba(255, 69, 58, 0.3); border-radius:16px; padding:16px; margin: 0 auto 24px; font-size:0.88rem; color:#FF453A; line-height:1.5; text-align:left; max-width:320px; box-shadow: 0 4px 20px rgba(255, 69, 58, 0.15); animation: sanctionShake 0.4s ease both;"></div>
+
             <div id="google-btn-container"></div>
             
             <p class="footer-text">
@@ -182,6 +185,16 @@
         <div class="spinner"></div>
         <p>Connexion à Aura Trade...</p>
     </div>
+
+    <style>
+        @keyframes sanctionShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-3px); }
+            80% { transform: translateX(3px); }
+        }
+    </style>
 
     <script>
         window.addEventListener('load', () => {
@@ -200,7 +213,38 @@
                             setTimeout(() => { window.location.href = 'index.html'; }, 1000);
                         },
                         onError: (err) => {
-                            alert('Erreur de connexion : ' + err);
+                            const errDiv = document.getElementById('loginError');
+                            if (errDiv) {
+                                if (err.startsWith('SUSPENDU:')) {
+                                    const parts = err.split(':');
+                                    const reason = parts[1] || 'Aucune raison spécifiée.';
+                                    const dateVal = parts[2] ? new Date(parts[2]) : null;
+                                    const dateStr = dateVal ? dateVal.toLocaleString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' }) : 'Indéterminée';
+                                    errDiv.innerHTML = `
+                                        <div style="font-weight:800; font-size:0.95rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">⏳ Accès suspendu</div>
+                                        <div style="opacity:0.85; margin-bottom:8px;">Votre compte est suspendu temporairement.</div>
+                                        <div style="background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:10px; font-size:0.8rem; border:1px solid rgba(255,255,255,0.05); margin-bottom:8px;">
+                                            <strong>Raison :</strong> ${reason}
+                                        </div>
+                                        <div style="font-size:0.75rem; opacity:0.6;"><strong>Fin de suspension :</strong> ${dateStr}</div>
+                                    `;
+                                } else if (err.startsWith('BANNI:')) {
+                                    const parts = err.split(':');
+                                    const reason = parts[1] || 'Aucune raison spécifiée.';
+                                    errDiv.innerHTML = `
+                                        <div style="font-weight:800; font-size:0.95rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">🚫 Compte banni</div>
+                                        <div style="opacity:0.85; margin-bottom:8px;">Votre compte est banni définitivement.</div>
+                                        <div style="background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:10px; font-size:0.8rem; border:1px solid rgba(255,255,255,0.05);">
+                                            <strong>Raison :</strong> ${reason}
+                                        </div>
+                                    `;
+                                } else {
+                                    errDiv.innerHTML = `❌ <strong>Erreur de connexion</strong><br>${err}`;
+                                }
+                                errDiv.style.display = 'block';
+                            } else {
+                                alert('Erreur de connexion : ' + err);
+                            }
                         }
                     });
                     AuraAuth.renderGoogleButton('google-btn-container', 'filled_black');
