@@ -1057,39 +1057,102 @@ async function logStaffAction(action, targetId, details) {
 function renderAdmin() {
     if (currentUser.email !== 'leoazex20@gmail.com' && !currentUser.is_admin && !currentUser.can_view_logs) return '<div class="container">Accès refusé</div>';
 
-    const totalAnnounces = announces.length;
-
-    // Charger automatiquement les utilisateurs, les annonces et les logs au démarrage
+    setTimeout(adminShowDashboard, 50);
     setTimeout(adminShowUsers, 50);
     setTimeout(adminShowAnnounces, 50);
     setTimeout(adminShowLogs, 50);
 
     return `
-    <div class="container">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-            <h2 style="font-size:1.6rem;font-weight:800;color:var(--orange);">👑 Panel d'Administration</h2>
+    <div class="container" style="max-width: 800px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 style="font-size:1.8rem;font-weight:900;color:var(--orange);">👑 Panel Admin</h2>
             <button class="btn btn-secondary" onclick="navigate('settings')">Retour</button>
         </div>
 
-        <div style="display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap;">
-            <div class="sidebar-card" style="flex:1; min-width:140px;"><div style="color:var(--white-50);">Total Annonces</div><div style="font-size:1.5rem;font-weight:800;">${totalAnnounces}</div></div>
-            <div class="sidebar-card" style="flex:1; min-width:140px;"><div style="color:var(--white-50);">Total Utilisateurs</div><div id="adminTotalUsersCount" style="font-size:1.5rem;font-weight:800;">...</div></div>
+        <div class="admin-tabs">
+            <div class="admin-tab active" onclick="switchAdminTab('dashboard', this)">📊 Dashboard</div>
+            <div class="admin-tab" onclick="switchAdminTab('users', this)">👥 Utilisateurs</div>
+            <div class="admin-tab" onclick="switchAdminTab('announces', this)">📢 Annonces</div>
+            <div class="admin-tab" onclick="switchAdminTab('logs', this)">📜 Logs</div>
         </div>
 
-        <div id="adminUsersView" class="sidebar-card" style="margin-bottom:24px;">
-            <p style="color:var(--white-50);">Chargement des utilisateurs...</p>
+        <div id="adminTab_dashboard" class="admin-view-content active">
+            <div id="adminDashboardView">
+                <p style="color:var(--white-50);">Chargement du tableau de bord...</p>
+            </div>
         </div>
 
-        <div id="adminAnnouncesView" class="sidebar-card" style="margin-bottom:24px;">
-            <p style="color:var(--white-50);">Chargement des annonces...</p>
+        <div id="adminTab_users" class="admin-view-content">
+            <input type="text" id="adminSearchUserInput" class="admin-search-input" placeholder="Rechercher par pseudo, ID ou email..." onkeyup="filterAdminUsers()">
+            <div id="adminUsersView" class="sidebar-card">
+                <p style="color:var(--white-50);">Chargement des utilisateurs...</p>
+            </div>
         </div>
 
-        <div id="adminLogsView" class="sidebar-card">
-            <p style="color:var(--white-50);">Chargement des logs...</p>
+        <div id="adminTab_announces" class="admin-view-content">
+            <div id="adminAnnouncesView" class="sidebar-card">
+                <p style="color:var(--white-50);">Chargement des annonces...</p>
+            </div>
         </div>
 
+        <div id="adminTab_logs" class="admin-view-content">
+            <div id="adminLogsView" class="sidebar-card">
+                <p style="color:var(--white-50);">Chargement des logs...</p>
+            </div>
+        </div>
     </div>
     `;
+}
+
+function switchAdminTab(tabId, el) {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.admin-view-content').forEach(c => c.classList.remove('active'));
+    if(el) el.classList.add('active');
+    const content = document.getElementById('adminTab_' + tabId);
+    if(content) content.classList.add('active');
+}
+
+async function adminShowDashboard() {
+    const view = document.getElementById('adminDashboardView');
+    if (!view) return;
+    
+    let totalUsers = '...';
+    let onlineUsers = '...';
+    if (AuraAuth._supabase) {
+        const { data: users } = await AuraAuth._supabase.from('profiles').select('last_seen');
+        if (users) {
+            totalUsers = users.length;
+            onlineUsers = users.filter(u => u.last_seen && (Date.now() - new Date(u.last_seen).getTime()) < 3600000).length;
+        }
+    }
+
+    view.innerHTML = `
+        <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+                <div class="admin-stat-title">Total Annonces</div>
+                <div class="admin-stat-value" style="color:var(--orange);">${announces.length}</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-title">Utilisateurs Inscrits</div>
+                <div class="admin-stat-value" style="color:#FFD700;">${totalUsers}</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-title">En Ligne (1h)</div>
+                <div class="admin-stat-value" style="color:#30D158;">${onlineUsers}</div>
+            </div>
+        </div>
+    `;
+}
+
+function filterAdminUsers() {
+    const input = document.getElementById('adminSearchUserInput');
+    if(!input) return;
+    const query = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.admin-user-row');
+    rows.forEach(row => {
+        const text = row.getAttribute('data-searchable') || '';
+        row.style.display = text.toLowerCase().includes(query) ? 'flex' : 'none';
+    });
 }
 
 async function adminShowUsers() {
@@ -1097,47 +1160,43 @@ async function adminShowUsers() {
     if (!view) return;
     if (!AuraAuth._supabase) return view.innerHTML = '<p>Erreur: Supabase non connecté.</p>';
 
-    const { data: users, error } = await AuraAuth._supabase.from('profiles').select('*');
+    const { data: users, error } = await AuraAuth._supabase.from('profiles').select('*').order('last_seen', { ascending: false });
     if (error) return view.innerHTML = '<p>Erreur: ' + error.message + '</p>';
 
-    const onlineUsers = users.filter(u => u.last_seen && (Date.now() - new Date(u.last_seen).getTime()) < 3600000).length;
-
-    // Mettre à jour le compteur d'utilisateurs dans la statistique en haut
-    const statsEl = document.getElementById('adminTotalUsersCount');
-    if (statsEl) statsEl.textContent = users.length;
-
     view.innerHTML = `
-        <h3 class="section-title">Utilisateurs inscrits (${users.length} total, ${onlineUsers} en ligne récemment)</h3>
-        <div style="max-height:400px;overflow-y:auto;">
+        <h3 class="section-title">Liste des Utilisateurs</h3>
+        <div style="max-height:500px;overflow-y:auto; padding-right:8px;">
             ${users.map(u => {
         const unreadSupportCount = messages.filter(m => m.fromUserId === u.id && m.toUserId === 'aura-support' && !m.read).length;
+        const searchData = escapeHtmlJsString(`${u.pseudo || ''} ${u.email || ''} ${u.id}`);
         return `
-                <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                    <div style="flex:1; min-width:180px;">
-                        <strong style="color:var(--white); display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                <div class="admin-user-row" data-searchable="${searchData}" style="padding:14px; background:rgba(255,255,255,0.02); border:1px solid var(--border-light); border-radius:var(--radius-md); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; transition:var(--transition);">
+                    <div style="flex:1; min-width:200px;">
+                        <strong style="color:var(--white); display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px; font-size:1.05rem;">
                             ${u.pseudo || 'Sans pseudo'}
                             ${renderUserBadges(u)}
                         </strong>
-                        <div style="font-size:0.8rem;color:var(--white-50); margin-top:2px;">${u.email === 'leoazex20@gmail.com' ? 'Email masqué' : (u.email || 'Email masqué')}</div>
+                        <div style="font-size:0.75rem;color:var(--white-50); margin-top:4px; font-family:monospace; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px; display:inline-block;">ID: ${u.id}</div>
+                        <div style="font-size:0.8rem;color:var(--white-70); margin-top:4px;">${u.email === 'leoazex20@gmail.com' ? 'Email masqué' : (u.email || 'Email masqué')}</div>
                     </div>
-                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                        <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}')">Renommer</button>
-                        <button class="btn btn-secondary btn-sm" style="background:#FF9500; border:none; color:#fff;" onclick="adminManageBadges('${u.id}')">🏷️ Badges</button>
-                        ${u.is_premium ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminRevokePremium('${u.id}')">Retirer Premium</button>`
-                : `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminGrantPremium('${u.id}')">⭐ Donner Premium</button>`}
+                    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                        <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}')">✏️ Pseudo</button>
+                        <button class="btn btn-secondary btn-sm" style="background:rgba(255,149,0,0.15); border:1px solid rgba(255,149,0,0.3); color:#FF9500;" onclick="adminManageBadges('${u.id}')">🏷️ Badges</button>
+                        ${u.is_premium ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminRevokePremium('${u.id}')">⭐ -Premium</button>`
+                : `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminGrantPremium('${u.id}')">⭐ +Premium</button>`}
                         ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
-                u.is_admin ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminRevokeAdmin('${u.id}')">Retirer Admin</button>`
-                    : `<button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="adminGrantAdmin('${u.id}')">👑 Donner Admin</button>`
+                u.is_admin ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminRevokeAdmin('${u.id}')">👑 -Admin</button>`
+                    : `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminGrantAdmin('${u.id}')">👑 +Admin</button>`
             ) : ''}
                         ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
                 u.can_view_logs ? `<button class="btn btn-ghost btn-sm" style="color:#30D158;" onclick="adminToggleLogsPermission('${u.id}', false)">📜 Voir Logs ✅</button>`
                     : `<button class="btn btn-ghost btn-sm" style="color:var(--white-50);" onclick="adminToggleLogsPermission('${u.id}', true)">📜 Voir Logs ❌</button>`
             ) : ''}
-                        <button class="btn btn-secondary btn-sm" style="display:flex;align-items:center;gap:6px;" onclick="openSupportChat('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}')">
-                            Message
-                            ${unreadSupportCount > 0 ? `<span style="background:var(--orange); color:white; font-size:0.7rem; font-weight:800; min-width:16px; height:16px; padding:0 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadSupportCount}</span>` : ''}
+                        <button class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;" onclick="openSupportChat('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}')">
+                            ✉️ Message
+                            ${unreadSupportCount > 0 ? `<span style="background:white; color:var(--orange); font-size:0.7rem; font-weight:800; min-width:16px; height:16px; padding:0 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadSupportCount}</span>` : ''}
                         </button>
-                        <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="adminBan('${u.id}')">Bannir</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--danger); background:rgba(255,69,58,0.1);" onclick="adminBan('${u.id}')">🚫 Ban</button>
                     </div>
                 </div>
             `;
@@ -1302,16 +1361,17 @@ function adminShowAnnounces() {
 
     view.innerHTML = `
         <h3 class="section-title" style="color:var(--orange);">📢 Modération des Annonces (${announces.length} en ligne)</h3>
-        <div style="max-height:400px;overflow-y:auto;">
+        <div style="max-height:500px;overflow-y:auto; padding-right:8px;">
             ${announces.length === 0 ? `
-                <p style="color:var(--white-50); padding:10px;">Aucune annonce active en ligne.</p>
+                <p style="color:var(--white-50); padding:14px; background:rgba(255,255,255,0.02); border-radius:var(--radius-md);">Aucune annonce active en ligne.</p>
             ` : announces.map(a => `
-                <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                    <div style="flex:1; min-width:180px;">
-                        <strong style="color:var(--white);">${a.title}</strong>
-                        <div style="font-size:0.8rem;color:var(--white-50);">Par ${a.sellerName} (ID: ${a.id})</div>
+                <div style="padding:14px; background:rgba(255,255,255,0.02); border:1px solid var(--border-light); border-radius:var(--radius-md); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; transition:var(--transition);">
+                    <div style="flex:1; min-width:200px;">
+                        <strong style="color:var(--white); font-size:1.05rem;">${a.title}</strong>
+                        <div style="font-size:0.85rem;color:var(--white-70); margin-top:4px;">Créé par <strong style="color:var(--white);">${a.sellerName}</strong></div>
+                        <div style="font-size:0.75rem;color:var(--white-50); margin-top:4px; font-family:monospace; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px; display:inline-block;">ID: ${a.id}</div>
                     </div>
-                    <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="adminDeleteAnnounce(${a.id})">🗑️ Supprimer</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--danger); background:rgba(255,69,58,0.1);" onclick="adminDeleteAnnounce(${a.id})">🗑️ Supprimer l'annonce</button>
                 </div>
             `).join('')}
         </div>
@@ -1357,24 +1417,24 @@ async function adminShowLogs() {
 
         view.innerHTML = `
             <h3 class="section-title" style="color:var(--orange); display:flex; align-items:center; gap:8px;">📜 Logs de Modération (100 derniers)</h3>
-            <div style="max-height:400px; overflow-y:auto; margin-top:12px; display:flex; flex-direction:column; gap:8px; padding-right:4px;">
+            <div style="max-height:500px; overflow-y:auto; margin-top:12px; display:flex; flex-direction:column; gap:8px; padding-right:8px;">
                 ${logs.map(log => {
                     const style = actionColors[log.action] || { bg: 'rgba(255, 255, 255, 0.05)', color: 'var(--white-50)', label: log.action };
                     const dateStr = new Date(log.created_at).toLocaleString('fr-FR', {
                         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
                     });
                     return `
-                        <div style="background:rgba(255,255,255,0.015); border:1px solid var(--border-light); padding:10px 14px; border-radius:var(--radius-md); display:flex; flex-direction:column; gap:6px;">
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-light); padding:14px; border-radius:var(--radius-md); display:flex; flex-direction:column; gap:8px; transition:var(--transition);">
                             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                    <span style="font-size:0.75rem; font-weight:700; background:${style.bg}; color:${style.color}; padding:2px 8px; border-radius:12px; border:1px solid ${style.color}22;">
+                                    <span style="font-size:0.75rem; font-weight:700; background:${style.bg}; color:${style.color}; padding:4px 10px; border-radius:12px; border:1px solid ${style.color}22;">
                                         ${style.label}
                                     </span>
-                                    <strong style="color:var(--white); font-size:0.88rem;">🧑‍💻 ${log.staff_pseudo}</strong>
+                                    <strong style="color:var(--white); font-size:0.95rem;">🧑‍💻 ${log.staff_pseudo}</strong>
                                 </div>
-                                <span style="font-size:0.75rem; color:var(--white-30);">${dateStr}</span>
+                                <span style="font-size:0.75rem; color:var(--white-30); background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:var(--radius-md);">${dateStr}</span>
                             </div>
-                            <div style="font-size:0.84rem; color:var(--white-70); line-height:1.4;">
+                            <div style="font-size:0.88rem; color:var(--white-70); line-height:1.5;">
                                 ${log.details}
                             </div>
                         </div>
