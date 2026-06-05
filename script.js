@@ -854,12 +854,6 @@ function renderSettings() {
     <div class="container" style="max-width:600px;">
         <h2 style="font-size:1.6rem;font-weight:800;color:var(--white);margin-bottom:24px;">⚙️ Paramètres</h2>
 
-        ${currentUser.email === 'leoazex20@gmail.com' || currentUser.is_admin || currentUser.can_view_logs ? `
-        <div class="sidebar-card" style="background:rgba(255,107,43,0.1);border-color:var(--orange);margin-bottom:24px;">
-            <h3 class="section-title" style="color:var(--orange);">Mode Administrateur</h3>
-            <button class="btn btn-primary btn-block" onclick="navigate('admin')">Accéder au Panel Admin</button>
-        </div>` : ''}
-
         <div class="sidebar-card">
             <h3 class="section-title">Profil</h3>
             <div class="form-group">
