@@ -1070,9 +1070,9 @@ function renderAdmin() {
             <button class="btn btn-secondary" onclick="navigate('settings')">Retour</button>
         </div>
 
-        <div style="display:flex; gap:16px; margin-bottom:24px;">
-            <div class="sidebar-card" style="flex:1;"><div style="color:var(--white-50);">Total Annonces</div><div style="font-size:1.5rem;font-weight:800;">${totalAnnounces}</div></div>
-            <div class="sidebar-card" style="flex:1;"><div style="color:var(--white-50);">Total Utilisateurs</div><div id="adminTotalUsersCount" style="font-size:1.5rem;font-weight:800;">...</div></div>
+        <div style="display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap;">
+            <div class="sidebar-card" style="flex:1; min-width:140px;"><div style="color:var(--white-50);">Total Annonces</div><div style="font-size:1.5rem;font-weight:800;">${totalAnnounces}</div></div>
+            <div class="sidebar-card" style="flex:1; min-width:140px;"><div style="color:var(--white-50);">Total Utilisateurs</div><div id="adminTotalUsersCount" style="font-size:1.5rem;font-weight:800;">...</div></div>
         </div>
 
         <div id="adminUsersView" class="sidebar-card" style="margin-bottom:24px;">
@@ -1111,15 +1111,15 @@ async function adminShowUsers() {
             ${users.map(u => {
         const unreadSupportCount = messages.filter(m => m.fromUserId === u.id && m.toUserId === 'aura-support' && !m.read).length;
         return `
-                <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-                    <div>
+                <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="flex:1; min-width:180px;">
                         <strong style="color:var(--white); display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px;">
                             ${u.pseudo || 'Sans pseudo'}
                             ${renderUserBadges(u)}
                         </strong>
                         <div style="font-size:0.8rem;color:var(--white-50); margin-top:2px;">${u.email === 'leoazex20@gmail.com' ? 'Email masqué' : (u.email || 'Email masqué')}</div>
                     </div>
-                    <div style="display:flex; gap:8px; align-items:center;">
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                         <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}')">Renommer</button>
                         <button class="btn btn-secondary btn-sm" style="background:#FF9500; border:none; color:#fff;" onclick="adminManageBadges('${u.id}')">🏷️ Badges</button>
                         ${u.is_premium ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700;" onclick="adminRevokePremium('${u.id}')">Retirer Premium</button>`
@@ -1305,8 +1305,8 @@ function adminShowAnnounces() {
             ${announces.length === 0 ? `
                 <p style="color:var(--white-50); padding:10px;">Aucune annonce active en ligne.</p>
             ` : announces.map(a => `
-                <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-                    <div>
+                <div style="padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="flex:1; min-width:180px;">
                         <strong style="color:var(--white);">${a.title}</strong>
                         <div style="font-size:0.8rem;color:var(--white-50);">Par ${a.sellerName} (ID: ${a.id})</div>
                     </div>
