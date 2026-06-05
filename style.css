@@ -1519,7 +1519,7 @@ body {
     }
 
     .bottom-nav {
-        display: flex;
+        display: flex !important;
     }
 }
 
