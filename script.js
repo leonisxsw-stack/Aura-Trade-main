@@ -222,9 +222,15 @@ function refreshUserData() {
         // Update Premium Button
         const premiumBtn = document.querySelector('.premium-header-btn');
         if (premiumBtn) {
-            premiumBtn.innerHTML = '🛒 Boutique & Premium';
+            premiumBtn.innerHTML = '<span class="btn-icon">🛒</span> <span class="btn-text">Boutique</span>';
             premiumBtn.onclick = () => navigate('premium');
         }
+
+        const isAdmin = currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com';
+        const btnAdminHeader = document.getElementById('btn-admin-header');
+        const btnAdminNav = document.getElementById('bottomNavAdmin');
+        if (btnAdminHeader) btnAdminHeader.style.display = isAdmin ? 'flex' : 'none';
+        if (btnAdminNav) btnAdminNav.style.display = isAdmin ? 'flex' : 'none';
     } else {
         if (userActions) userActions.style.display = 'none';
         if (loginBtn) loginBtn.style.display = 'block';
@@ -847,7 +853,13 @@ function renderSettings() {
     return `
     <div class="container" style="max-width:600px;">
         <h2 style="font-size:1.6rem;font-weight:800;color:var(--white);margin-bottom:24px;">⚙️ Paramètres</h2>
-        
+
+        ${currentUser.email === 'leoazex20@gmail.com' || currentUser.is_admin || currentUser.can_view_logs ? `
+        <div class="sidebar-card" style="background:rgba(255,107,43,0.1);border-color:var(--orange);margin-bottom:24px;">
+            <h3 class="section-title" style="color:var(--orange);">Mode Administrateur</h3>
+            <button class="btn btn-primary btn-block" onclick="navigate('admin')">Accéder au Panel Admin</button>
+        </div>` : ''}
+
         <div class="sidebar-card">
             <h3 class="section-title">Profil</h3>
             <div class="form-group">
@@ -908,11 +920,6 @@ function renderSettings() {
             </div>
         </div>
         
-        ${currentUser.email === 'leoazex20@gmail.com' || currentUser.is_admin || currentUser.can_view_logs ? `
-        <div class="sidebar-card mt-4" style="background:rgba(255,107,43,0.1);border-color:var(--orange);">
-            <h3 class="section-title" style="color:var(--orange);">Mode Administrateur</h3>
-            <button class="btn btn-primary btn-block" onclick="navigate('admin')">Accéder au Panel Admin</button>
-        </div>` : ''}
     </div>
 `;
 }
