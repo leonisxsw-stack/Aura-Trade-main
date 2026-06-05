@@ -142,6 +142,11 @@ function refreshUserData() {
         if (userActions) userActions.style.display = 'flex';
         if (loginBtn) loginBtn.style.display = 'none';
 
+        // Start real-time sanction check for non-admin users
+        if (!currentUser.is_admin && currentUser.email !== 'leoazex20@gmail.com') {
+            startSanctionPolling();
+        }
+
         if (AuraAuth._supabase && currentUser.id !== 'guest') {
             AuraAuth._supabase.from('profiles').upsert({
                 id: currentUser.id,
@@ -1196,7 +1201,7 @@ async function adminShowUsers() {
                             ✉️ Message
                             ${unreadSupportCount > 0 ? `<span style="background:white; color:var(--orange); font-size:0.7rem; font-weight:800; min-width:16px; height:16px; padding:0 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadSupportCount}</span>` : ''}
                         </button>
-                        <button class="btn btn-ghost btn-sm" style="color:var(--danger); background:rgba(255,69,58,0.1);" onclick="adminBan('${u.id}')">🚫 Ban</button>
+                        <button class="btn btn-ghost btn-sm" style="color:#FF453A; background:rgba(255,69,58,0.12); border:1px solid rgba(255,69,58,0.2); font-weight:700;" onclick="openModerationModal('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}', ${u.banned ? 'true' : 'false'})">🔨 Modérer</button>
                     </div>
                 </div>
             `;
@@ -1341,19 +1346,388 @@ async function sendSupportChatMsg(playerId, playerPseudo) {
     }
 }
 
+// ==================== MODERATION MODAL ====================
+function openModerationModal(userId, pseudo, isBanned) {
+    closeModal();
+    const overlay = document.createElement('div');
+    overlay.id = 'moderationModal';
+    overlay.style.cssText = `
+        position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(12px);
+        z-index:9999; display:flex; align-items:center; justify-content:center; padding:20px;
+        animation: fadeIn 0.2s ease-out;
+    `;
+    overlay.innerHTML = `
+        <div style="background:linear-gradient(135deg, #1a1a1e 0%, #16161a 100%); border:1px solid rgba(255,69,58,0.3); border-radius:20px; padding:28px; width:100%; max-width:460px; box-shadow:0 20px 60px rgba(0,0,0,0.8);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <div>
+                    <div style="font-size:1.4rem; font-weight:900; color:#fff;">🔨 Modérer</div>
+                    <div style="color:rgba(255,255,255,0.5); font-size:0.88rem; margin-top:2px;">Cible : <strong style="color:var(--orange);">${pseudo}</strong></div>
+                </div>
+                <button onclick="closeModal()" style="background:rgba(255,255,255,0.08); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:1.1rem;">✕</button>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <!-- AVERTISSEMENT -->
+                <div style="background:rgba(255,214,10,0.07); border:1px solid rgba(255,214,10,0.2); border-radius:14px; padding:16px;">
+                    <div style="font-weight:700; color:#FFD60A; margin-bottom:10px;">⚠️ Avertissement</div>
+                    <textarea id="warnReason_${userId}" placeholder="Raison de l'avertissement..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
+                    <button onclick="adminWarn('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:#FFD60A; color:#000; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem; transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer l'avertissement</button>
+                </div>
+
+                <!-- KICK -->
+                <div style="background:rgba(255,149,0,0.07); border:1px solid rgba(255,149,0,0.2); border-radius:14px; padding:16px;">
+                    <div style="font-weight:700; color:#FF9500; margin-bottom:10px;">🥾 Expulser (Kick)</div>
+                    <textarea id="kickReason_${userId}" placeholder="Raison du kick..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
+                    <button onclick="adminKick('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:#FF9500; color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Expulser du site</button>
+                </div>
+
+                <!-- BAN TEMPORAIRE -->
+                <div style="background:rgba(255,107,43,0.07); border:1px solid rgba(255,107,43,0.2); border-radius:14px; padding:16px;">
+                    <div style="font-weight:700; color:var(--orange); margin-bottom:10px;">⏳ Ban Temporaire</div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                        <select id="tempbanDuration_${userId}" style="flex:1; min-width:120px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px; font-family:inherit; font-size:0.85rem; outline:none;">
+                            <option value="1">1 heure</option>
+                            <option value="24" selected>1 jour</option>
+                            <option value="72">3 jours</option>
+                            <option value="168">1 semaine</option>
+                            <option value="720">30 jours</option>
+                        </select>
+                    </div>
+                    <textarea id="tempbanReason_${userId}" placeholder="Raison du ban temporaire..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
+                    <button onclick="adminTempBan('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:var(--orange); color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Appliquer le ban temporaire</button>
+                </div>
+
+                <!-- BAN DÉFINITIF -->
+                <div style="background:rgba(255,69,58,0.07); border:1px solid rgba(255,69,58,0.3); border-radius:14px; padding:16px;">
+                    <div style="font-weight:700; color:#FF453A; margin-bottom:10px;">🚫 Ban Définitif</div>
+                    <textarea id="permbanReason_${userId}" placeholder="Raison du ban définitif..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
+                    <button onclick="adminPermBan('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:#FF453A; color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Bannir définitivement</button>
+                </div>
+
+                ${isBanned ? `
+                <!-- DÉBANNIR -->
+                <div style="background:rgba(48,209,88,0.07); border:1px solid rgba(48,209,88,0.3); border-radius:14px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:700; color:#30D158;">✅ Cet utilisateur est banni</div>
+                    <button onclick="adminUnban('${userId}')" style="padding:8px 18px; background:#30D158; color:#000; border:none; border-radius:10px; font-weight:800; cursor:pointer;">Débannir</button>
+                </div>` : ''}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+}
+
+// ==================== SANCTION FUNCTIONS ====================
+
+async function adminWarn(userId, pseudo) {
+    const reason = document.getElementById(`warnReason_${userId}`)?.value?.trim();
+    if (!reason) return showToast('⚠️ Écris une raison pour l\'avertissement.');
+    try {
+        await AuraAuth._supabase.from('profiles').update({
+            pending_warning: JSON.stringify({ reason, date: new Date().toISOString() })
+        }).eq('id', userId);
+        await logStaffAction('AVERTISSEMENT', userId, `A averti ${pseudo} : "${reason}"`);
+        showToast('⚠️ Avertissement envoyé à ' + pseudo);
+        closeModal();
+    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+}
+
+async function adminKick(userId, pseudo) {
+    const reason = document.getElementById(`kickReason_${userId}`)?.value?.trim();
+    if (!reason) return showToast('⚠️ Écris une raison pour le kick.');
+    try {
+        const kickToken = Date.now().toString();
+        await AuraAuth._supabase.from('profiles').update({
+            kick_token: kickToken,
+            pending_kick: JSON.stringify({ reason, date: new Date().toISOString() })
+        }).eq('id', userId);
+        await logStaffAction('KICK', userId, `A expulsé ${pseudo} : "${reason}"`);
+        showToast('🥾 ' + pseudo + ' a été expulsé.');
+        closeModal();
+    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+}
+
+async function adminTempBan(userId, pseudo) {
+    const hours = parseInt(document.getElementById(`tempbanDuration_${userId}`)?.value || '24');
+    const reason = document.getElementById(`tempbanReason_${userId}`)?.value?.trim();
+    if (!reason) return showToast('⚠️ Écris une raison pour le ban temporaire.');
+    const bannedUntil = new Date(Date.now() + hours * 3600000).toISOString();
+    const label = hours < 24 ? `${hours}h` : hours < 168 ? `${hours/24}j` : hours < 720 ? `${Math.round(hours/168)} semaine(s)` : '30 jours';
+    try {
+        await AuraAuth._supabase.from('profiles').update({
+            banned: true,
+            banned_until: bannedUntil,
+            ban_reason: reason
+        }).eq('id', userId);
+        await logStaffAction('BAN_TEMPORAIRE', userId, `A banni temporairement ${pseudo} pour ${label} : "${reason}"`);
+        showToast(`⏳ ${pseudo} banni pour ${label}.`);
+        closeModal();
+        adminShowUsers();
+    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+}
+
+async function adminPermBan(userId, pseudo) {
+    const reason = document.getElementById(`permbanReason_${userId}`)?.value?.trim();
+    if (!reason) return showToast('⚠️ Écris une raison pour le ban définitif.');
+    if (!confirm(`Bannir définitivement ${pseudo} ?\nRaison : ${reason}`)) return;
+    try {
+        await AuraAuth._supabase.from('profiles').update({
+            banned: true,
+            banned_until: null,
+            ban_reason: reason
+        }).eq('id', userId);
+        await logStaffAction('BAN_DEFINITIF', userId, `A banni définitivement ${pseudo} : "${reason}"`);
+        showToast('🚫 ' + pseudo + ' banni définitivement.');
+        closeModal();
+        adminShowUsers();
+    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+}
+
 async function adminBan(userId) {
-    if (!confirm('Bannir définitivement cet utilisateur ? (Nécessite la colonne "banned" dans la table profiles)')) return;
+    await adminPermBan(userId, userId);
+}
+
+async function adminUnban(userId) {
+    if (!confirm('Débannir cet utilisateur ?')) return;
     try {
         const { data: user } = await AuraAuth._supabase.from('profiles').select('pseudo, email').eq('id', userId).single();
-        const ident = user ? `${user.pseudo || 'Sans pseudo'} (${user.email || 'Email caché'})` : `ID: ${userId}`;
-        await AuraAuth._supabase.from('profiles').update({ banned: true }).eq('id', userId);
-        showToast('🚫 Utilisateur banni');
-        await logStaffAction('BANNIR_UTILISATEUR', userId, `A banni définitivement l'utilisateur : ${ident}`);
-    } catch (e) {
-        console.error(e);
-        showToast('❌ Erreur lors du bannissement');
-    }
+        const ident = user ? `${user.pseudo || 'Sans pseudo'}` : `ID: ${userId}`;
+        await AuraAuth._supabase.from('profiles').update({ banned: false, banned_until: null, ban_reason: null }).eq('id', userId);
+        showToast('✅ ' + ident + ' débanni.');
+        await logStaffAction('DEBANNIR_UTILISATEUR', userId, `A débanni l'utilisateur : ${ident}`);
+        closeModal();
+        adminShowUsers();
+    } catch(e) { showToast('❌ Erreur : ' + e.message); }
 }
+
+// ==================== REAL-TIME SANCTION CHECK ====================
+let _lastKickToken = null;
+let _sanctionCheckInterval = null;
+
+function startSanctionPolling() {
+    if (_sanctionCheckInterval) return; // already running
+    _sanctionCheckInterval = setInterval(checkCurrentUserSanctions, 12000); // every 12s
+    checkCurrentUserSanctions(); // immediate first check
+}
+
+async function checkCurrentUserSanctions() {
+    if (!AuraAuth._supabase || !currentUser?.id || currentUser.id === 'guest') return;
+    // Admins don't get sanctioned
+    if (currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com') return;
+
+    try {
+        const { data } = await AuraAuth._supabase
+            .from('profiles')
+            .select('banned, banned_until, ban_reason, kick_token, pending_kick, pending_warning')
+            .eq('id', currentUser.id)
+            .single();
+
+        if (!data) return;
+
+        // ---- AVERTISSEMENT ----
+        if (data.pending_warning) {
+            const warn = JSON.parse(data.pending_warning);
+            showSanctionOverlay('warn', { reason: warn.reason });
+            // Clear it so it only shows once
+            await AuraAuth._supabase.from('profiles').update({ pending_warning: null }).eq('id', currentUser.id);
+            return;
+        }
+
+        // ---- KICK ----
+        if (data.kick_token && data.kick_token !== _lastKickToken) {
+            if (_lastKickToken !== null) {
+                // It changed = a kick was applied
+                const kickData = data.pending_kick ? JSON.parse(data.pending_kick) : { reason: 'Aucune raison spécifiée.' };
+                showSanctionOverlay('kick', { reason: kickData.reason });
+                // Clear kick token after showing
+                await AuraAuth._supabase.from('profiles').update({ kick_token: null, pending_kick: null }).eq('id', currentUser.id);
+                setTimeout(() => { AuraAuth.logOut(); window.location.href = 'login.html'; }, 6000);
+                return;
+            }
+            _lastKickToken = data.kick_token;
+        }
+        if (_lastKickToken === null) _lastKickToken = data.kick_token || '';
+
+        // ---- BAN TEMPORAIRE ----
+        if (data.banned && data.banned_until) {
+            const until = new Date(data.banned_until).getTime();
+            if (Date.now() < until) {
+                showSanctionOverlay('tempban', { reason: data.ban_reason, until: data.banned_until });
+                return;
+            } else {
+                // Ban expired: auto-unban
+                await AuraAuth._supabase.from('profiles').update({ banned: false, banned_until: null, ban_reason: null }).eq('id', currentUser.id);
+            }
+        }
+
+        // ---- BAN DEFINITIF ----
+        if (data.banned && !data.banned_until) {
+            showSanctionOverlay('permban', { reason: data.ban_reason });
+            setTimeout(() => { AuraAuth.logOut(); window.location.href = 'login.html'; }, 8000);
+        }
+
+    } catch(e) { /* silent fail */ }
+}
+
+function showSanctionOverlay(type, { reason, until } = {}) {
+    // Don't stack overlays
+    if (document.getElementById('sanctionOverlay')) return;
+
+    const configs = {
+        warn: {
+            icon: '⚠️',
+            title: 'Avertissement officiel',
+            subtitle: 'Tu as reçu un avertissement de la part du staff Aura Trade.',
+            color: '#FFD60A',
+            glow: 'rgba(255,214,10,0.3)',
+            bg: 'rgba(255,214,10,0.06)',
+            border: 'rgba(255,214,10,0.4)',
+            btnLabel: 'J\'ai compris',
+            btnAction: 'document.getElementById(\'sanctionOverlay\').remove()',
+            canClose: true,
+        },
+        kick: {
+            icon: '🥾',
+            title: 'Tu as été expulsé',
+            subtitle: 'Le staff Aura Trade t\'a expulsé du site. Tu seras déconnecté dans quelques secondes.',
+            color: '#FF9500',
+            glow: 'rgba(255,149,0,0.3)',
+            bg: 'rgba(255,149,0,0.06)',
+            border: 'rgba(255,149,0,0.4)',
+            btnLabel: 'Déconnexion...',
+            btnAction: '',
+            canClose: false,
+        },
+        tempban: {
+            icon: '⏳',
+            title: 'Compte suspendu temporairement',
+            subtitle: until ? `Ton accès est suspendu jusqu\'au ${new Date(until).toLocaleString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}.` : 'Ton compte est suspendu temporairement.',
+            color: 'var(--orange)',
+            glow: 'rgba(255,107,43,0.3)',
+            bg: 'rgba(255,107,43,0.06)',
+            border: 'rgba(255,107,43,0.4)',
+            btnLabel: 'Quitter',
+            btnAction: 'AuraAuth.logOut(); window.location.href=\'login.html\'',
+            canClose: false,
+        },
+        permban: {
+            icon: '🚫',
+            title: 'Compte banni définitivement',
+            subtitle: 'Ton compte Aura Trade a été banni définitivement par le staff suite à une violation de nos règles.',
+            color: '#FF453A',
+            glow: 'rgba(255,69,58,0.35)',
+            bg: 'rgba(255,69,58,0.06)',
+            border: 'rgba(255,69,58,0.5)',
+            btnLabel: 'Quitter',
+            btnAction: 'AuraAuth.logOut(); window.location.href=\'login.html\'',
+            canClose: false,
+        },
+    };
+
+    const c = configs[type] || configs.warn;
+
+    const el = document.createElement('div');
+    el.id = 'sanctionOverlay';
+    el.style.cssText = `
+        position:fixed; inset:0; z-index:99999;
+        background:rgba(0,0,0,0.92);
+        backdrop-filter:blur(20px) saturate(0.5);
+        display:flex; align-items:center; justify-content:center; padding:24px;
+        animation: sanctionIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+    `;
+
+    el.innerHTML = `
+        <style>
+            @keyframes sanctionIn {
+                from { opacity:0; transform:scale(0.9) translateY(20px); }
+                to { opacity:1; transform:scale(1) translateY(0); }
+            }
+            @keyframes sanctionPulse {
+                0%,100% { box-shadow: 0 0 0 0 ${c.glow}; }
+                50% { box-shadow: 0 0 0 20px rgba(0,0,0,0); }
+            }
+            @keyframes sanctionShake {
+                0%,100%{transform:translateX(0)}
+                20%{transform:translateX(-8px)}
+                40%{transform:translateX(8px)}
+                60%{transform:translateX(-4px)}
+                80%{transform:translateX(4px)}
+            }
+        </style>
+        <div style="
+            background: linear-gradient(135deg, #111113 0%, #0d0d0f 100%);
+            border: 1.5px solid ${c.border};
+            border-radius: 24px;
+            padding: 40px 32px;
+            max-width: 460px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 0 80px ${c.glow}, 0 30px 80px rgba(0,0,0,0.9);
+            animation: sanctionShake 0.5s 0.3s ease both;
+        ">
+            <!-- Logo -->
+            <div style="font-size:0.85rem; font-weight:800; letter-spacing:0.15em; color:rgba(255,255,255,0.3); text-transform:uppercase; margin-bottom:24px;">
+                ⚡ Aura Trade — Staff
+            </div>
+
+            <!-- Icon -->
+            <div style="
+                font-size:4rem; 
+                margin-bottom:20px;
+                display:inline-flex; align-items:center; justify-content:center;
+                width:90px; height:90px;
+                background:${c.bg};
+                border:2px solid ${c.border};
+                border-radius:50%;
+                animation:sanctionPulse 2s ease-in-out infinite;
+            ">${c.icon}</div>
+
+            <!-- Title -->
+            <h2 style="color:${c.color}; font-size:1.5rem; font-weight:900; margin:0 0 8px; letter-spacing:-0.02em;">${c.title}</h2>
+
+            <!-- Subtitle -->
+            <p style="color:rgba(255,255,255,0.55); font-size:0.92rem; line-height:1.6; margin-bottom:24px;">${c.subtitle}</p>
+
+            <!-- Reason box -->
+            ${reason ? `
+            <div style="
+                background:${c.bg};
+                border:1px solid ${c.border};
+                border-radius:14px;
+                padding:16px 20px;
+                margin-bottom:24px;
+                text-align:left;
+            ">
+                <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:${c.color}; margin-bottom:8px;">📋 Raison</div>
+                <div style="color:#fff; font-size:0.95rem; line-height:1.5; font-weight:500;">${reason}</div>
+            </div>` : ''}
+
+            <!-- Button -->
+            <button onclick="${c.btnAction}" style="
+                width:100%;
+                padding:14px;
+                background:${c.color};
+                color:${type === 'warn' ? '#000' : '#fff'};
+                border:none;
+                border-radius:14px;
+                font-size:1rem;
+                font-weight:800;
+                cursor:pointer;
+                font-family:inherit;
+                letter-spacing:0.02em;
+                transition:opacity 0.2s;
+            " onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">${c.btnLabel}</button>
+
+            <div style="margin-top:16px; font-size:0.75rem; color:rgba(255,255,255,0.2);">
+                Si tu penses que c'est une erreur, contacte le support.
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(el);
+}
+
+
 
 function adminShowAnnounces() {
     const view = document.getElementById('adminAnnouncesView');
@@ -1406,7 +1780,12 @@ async function adminShowLogs() {
 
         const actionColors = {
             'RENOMMER_UTILISATEUR': { bg: 'rgba(90, 200, 250, 0.1)', color: '#5AC8FA', label: '✏️ Pseudo' },
-            'BANNIR_UTILISATEUR': { bg: 'rgba(255, 69, 58, 0.1)', color: '#FF453A', label: '🚫 Bannissement' },
+            'BANNIR_UTILISATEUR': { bg: 'rgba(255, 69, 58, 0.1)', color: '#FF453A', label: '🚫 Banni' },
+            'DEBANNIR_UTILISATEUR': { bg: 'rgba(48, 209, 88, 0.1)', color: '#30D158', label: '✅ Débanni' },
+            'AVERTISSEMENT': { bg: 'rgba(255, 214, 10, 0.1)', color: '#FFD60A', label: '⚠️ Avertissement' },
+            'KICK': { bg: 'rgba(255, 149, 0, 0.1)', color: '#FF9500', label: '🦶 Kick' },
+            'BAN_TEMPORAIRE': { bg: 'rgba(255, 107, 43, 0.1)', color: '#FF6B2B', label: '⏳ Ban Temp' },
+            'BAN_DEFINITIF': { bg: 'rgba(255, 69, 58, 0.15)', color: '#FF453A', label: '🚫 Ban Déf' },
             'GERER_BADGES': { bg: 'rgba(255, 159, 10, 0.1)', color: '#FF9F0A', label: '🏷️ Badges' },
             'DONNER_PREMIUM': { bg: 'rgba(191, 90, 242, 0.1)', color: '#BF5AF2', label: '💎 +Premium' },
             'RETIRER_PREMIUM': { bg: 'rgba(191, 90, 242, 0.05)', color: '#BF5AF2', label: '💎 -Premium' },
