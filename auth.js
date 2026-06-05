@@ -180,4 +180,4 @@ window.AURA_SITE_URL = 'https://leonisxsw-stack.github.io/Aura-Trade-main';
 // Serveur OAuth du bot — en local : localhost:3850 | en prod : URL publique du bot
 window.AURA_DISCORD_OAUTH_API = 'https://dpnmafmlwfetaadvyzeu.supabase.co/functions/v1/discord-oauth';
 
-window.AuraAuth = { getUser, logOut, requireAuth, redirectIfLoggedIn, initGoogleAuth, renderGoogleButton, _supabase };
+window.AuraAuth = { getUser, logOut, requireAuth, redirectIfLoggedIn, initGoogleAuth, renderGoogleButton, _supabase, saveSession };

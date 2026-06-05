@@ -174,6 +174,13 @@
             <div id="loginError" style="display:none; background:rgba(255, 69, 58, 0.1); border:1.5px solid rgba(255, 69, 58, 0.3); border-radius:16px; padding:16px; margin: 0 auto 24px; font-size:0.88rem; color:#FF453A; line-height:1.5; text-align:left; max-width:320px; box-shadow: 0 4px 20px rgba(255, 69, 58, 0.15); animation: sanctionShake 0.4s ease both;"></div>
 
             <div id="google-btn-container"></div>
+
+            <!-- Local Test Login -->
+            <div id="local-test-login" style="display:none; margin-top:24px; border-top:1px solid var(--border); padding-top:24px;">
+                <p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">🛠️ Mode Développeur (Local)</p>
+                <input type="text" id="testEmailInput" placeholder="Email de test (ex: leoazex20@gmail.com)" style="width:100%; max-width:300px; padding:12px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:12px; color:var(--white); font-family:inherit; font-size:0.88rem; outline:none; margin-bottom:12px; text-align:center;">
+                <button onclick="handleTestLogin()" style="width:100%; max-width:300px; padding:12px; background:var(--white); color:var(--bg); border:none; border-radius:12px; font-weight:700; font-size:0.9rem; cursor:pointer; transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Connexion de Test</button>
+            </div>
             
             <p class="footer-text">
                 En continuant, vous acceptez nos <a href="#">Conditions d'utilisation</a> et notre <a href="#">Politique de confidentialité</a>.
@@ -197,12 +204,77 @@
     </style>
 
     <script>
+        window.handleTestLogin = async () => {
+            const email = document.getElementById('testEmailInput').value.trim();
+            if (!email) return alert('Veuillez entrer un email de test.');
+            
+            const name = email.split('@')[0];
+            const fakePayload = {
+                sub: 'test-id-' + name,
+                name: name.charAt(0).toUpperCase() + name.slice(1),
+                email: email,
+                picture: null,
+                exp: Math.floor(Date.now() / 1000) + 3600 * 24 // 24 hours
+            };
+            
+            document.getElementById('loadingOverlay').classList.add('active');
+            try {
+                const user = await AuraAuth.saveSession(fakePayload);
+                setTimeout(() => { window.location.href = 'index.html'; }, 800);
+            } catch (err) {
+                document.getElementById('loadingOverlay').classList.remove('active');
+                const errDiv = document.getElementById('loginError');
+                if (errDiv) {
+                    const errMsg = err.message || err;
+                    if (errMsg.startsWith('SUSPENDU:')) {
+                        const parts = errMsg.split(':');
+                        const reason = parts[1] || 'Aucune raison spécifiée.';
+                        const dateVal = parts[2] ? new Date(parts[2]) : null;
+                        const dateStr = dateVal ? dateVal.toLocaleString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' }) : 'Indéterminée';
+                        errDiv.innerHTML = `
+                            <div style="font-weight:800; font-size:0.95rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">⏳ Accès suspendu</div>
+                            <div style="opacity:0.85; margin-bottom:8px;">Votre compte est suspendu temporairement.</div>
+                            <div style="background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:10px; font-size:0.8rem; border:1px solid rgba(255,255,255,0.05); margin-bottom:8px;">
+                                <strong>Raison :</strong> ${reason}
+                            </div>
+                            <div style="font-size:0.75rem; opacity:0.6;"><strong>Fin de suspension :</strong> ${dateStr}</div>
+                        `;
+                    } else if (errMsg.startsWith('BANNI:')) {
+                        const parts = errMsg.split(':');
+                        const reason = parts[1] || 'Aucune raison spécifiée.';
+                        errDiv.innerHTML = `
+                            <div style="font-weight:800; font-size:0.95rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">🚫 Compte banni</div>
+                            <div style="opacity:0.85; margin-bottom:8px;">Votre compte est banni définitivement.</div>
+                            <div style="background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:10px; font-size:0.8rem; border:1px solid rgba(255,255,255,0.05);">
+                                <strong>Raison :</strong> ${reason}
+                            </div>
+                        `;
+                    } else {
+                        errDiv.innerHTML = `❌ <strong>Erreur de connexion</strong><br>${errMsg}`;
+                    }
+                    errDiv.style.display = 'block';
+                    
+                    // Trigger shake animation
+                    errDiv.style.animation = 'none';
+                    errDiv.offsetHeight; // trigger reflow
+                    errDiv.style.animation = 'sanctionShake 0.4s ease both';
+                } else {
+                    alert('Erreur: ' + errMsg);
+                }
+            }
+        };
+
         window.addEventListener('load', () => {
             const params = new URLSearchParams(window.location.search);
             const isLogout = params.get('logout') === 'true';
 
             if (!isLogout) {
                 AuraAuth.redirectIfLoggedIn('index.html');
+            }
+
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                const testDiv = document.getElementById('local-test-login');
+                if (testDiv) testDiv.style.display = 'block';
             }
 
             const tryInit = () => {
