@@ -268,6 +268,7 @@ let profilesCache = {
 
 let nextId = 1;
 let currentPage = 'home';
+let _adminLiveInterval = null;
 let currentDetailId = null;
 let currentProfileUserId = null;
 let currentCreateStep = 1;
@@ -1062,10 +1063,46 @@ async function logStaffAction(action, targetId, details) {
 function renderAdmin() {
     if (currentUser.email !== 'leoazex20@gmail.com' && !currentUser.is_admin && !currentUser.can_view_logs) return '<div class="container">Accès refusé</div>';
 
+    if (_adminLiveInterval) {
+        clearInterval(_adminLiveInterval);
+        _adminLiveInterval = null;
+    }
+
     setTimeout(adminShowDashboard, 50);
     setTimeout(adminShowUsers, 50);
     setTimeout(adminShowAnnounces, 50);
     setTimeout(adminShowLogs, 50);
+
+    // Live updates every 5 seconds while on the admin panel
+    _adminLiveInterval = setInterval(() => {
+        if (currentPage !== 'admin') {
+            clearInterval(_adminLiveInterval);
+            _adminLiveInterval = null;
+            return;
+        }
+        adminShowDashboard();
+
+        // Refresh users list if we are viewing the users tab and the user is not actively typing in the search box
+        const usersTab = document.getElementById('adminTab_users');
+        if (usersTab && usersTab.classList.contains('active')) {
+            const searchInput = document.getElementById('adminSearchUserInput');
+            if (searchInput && document.activeElement !== searchInput && !searchInput.value.trim()) {
+                adminShowUsers();
+            }
+        }
+
+        // Refresh announces if viewing the announces tab
+        const announcesTab = document.getElementById('adminTab_announces');
+        if (announcesTab && announcesTab.classList.contains('active')) {
+            adminShowAnnounces();
+        }
+
+        // Refresh logs if viewing the logs tab
+        const logsTab = document.getElementById('adminTab_logs');
+        if (logsTab && logsTab.classList.contains('active')) {
+            adminShowLogs();
+        }
+    }, 5000);
 
     return `
     <div class="container" style="max-width: 800px;">
@@ -1123,11 +1160,13 @@ async function adminShowDashboard() {
     
     let totalUsers = '...';
     let onlineUsers = '...';
+    let staffCount = '...';
     if (AuraAuth._supabase) {
-        const { data: users } = await AuraAuth._supabase.from('profiles').select('last_seen');
+        const { data: users } = await AuraAuth._supabase.from('profiles').select('last_seen, is_admin, email, badges');
         if (users) {
             totalUsers = users.length;
             onlineUsers = users.filter(u => u.last_seen && (Date.now() - new Date(u.last_seen).getTime()) < 3600000).length;
+            staffCount = users.filter(u => u.is_admin || u.email === 'leoazex20@gmail.com' || getUserBadges(u).includes('Staff')).length;
         }
     }
 
@@ -1144,6 +1183,10 @@ async function adminShowDashboard() {
             <div class="admin-stat-card">
                 <div class="admin-stat-title">En Ligne (1h)</div>
                 <div class="admin-stat-value" style="color:#30D158;">${onlineUsers}</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-title">Membres du Staff</div>
+                <div class="admin-stat-value" style="color:#5AC8FA;">${staffCount}</div>
             </div>
         </div>
     `;
@@ -1168,10 +1211,10 @@ async function adminShowUsers() {
     const { data: users, error } = await AuraAuth._supabase.from('profiles').select('*').order('last_seen', { ascending: false });
     if (error) return view.innerHTML = '<p>Erreur: ' + error.message + '</p>';
 
-    view.innerHTML = `
-        <h3 class="section-title">Liste des Utilisateurs</h3>
-        <div style="max-height:500px;overflow-y:auto; padding-right:8px;">
-            ${users.map(u => {
+    const staffUsers = users.filter(u => u.is_admin || u.email === 'leoazex20@gmail.com' || getUserBadges(u).includes('Staff'));
+    const playerUsers = users.filter(u => !(u.is_admin || u.email === 'leoazex20@gmail.com' || getUserBadges(u).includes('Staff')));
+
+    const renderRow = (u) => {
         const unreadSupportCount = messages.filter(m => m.fromUserId === u.id && m.toUserId === 'aura-support' && !m.read).length;
         const searchData = escapeHtmlJsString(`${u.pseudo || ''} ${u.email || ''} ${u.id}`);
         
@@ -1219,7 +1262,22 @@ async function adminShowUsers() {
                     </div>
                 </div>
             `;
-    }).join('')}
+    };
+
+    view.innerHTML = `
+        <div style="max-height:600px;overflow-y:auto; padding-right:8px;">
+            <div style="margin-bottom:24px;">
+                <h4 style="font-size:1.1rem; color:var(--orange); font-weight:800; margin-bottom:12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px;">
+                    🛡️ Staff (${staffUsers.length})
+                </h4>
+                ${staffUsers.length === 0 ? '<p style="color:var(--white-30); font-size:0.9rem;">Aucun membre du staff.</p>' : staffUsers.map(renderRow).join('')}
+            </div>
+            <div>
+                <h4 style="font-size:1.1rem; color:#fff; font-weight:800; margin-bottom:12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px;">
+                    👥 Joueurs (${playerUsers.length})
+                </h4>
+                ${playerUsers.length === 0 ? '<p style="color:var(--white-30); font-size:0.9rem;">Aucun joueur.</p>' : playerUsers.map(renderRow).join('')}
+            </div>
         </div>
     `;
 }
@@ -1387,13 +1445,6 @@ function openModerationModal(userId, pseudo, isBanned) {
                     <div style="font-weight:700; color:#FFD60A; margin-bottom:10px;">⚠️ Avertissement</div>
                     <textarea id="warnReason_${userId}" placeholder="Raison de l'avertissement..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
                     <button onclick="adminWarn('${userId}', '${escapedPseudo}')" style="margin-top:8px; padding:8px 18px; background:#FFD60A; color:#000; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem; transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer l'avertissement</button>
-                </div>
-
-                <!-- KICK -->
-                <div style="background:rgba(255,149,0,0.07); border:1px solid rgba(255,149,0,0.2); border-radius:14px; padding:16px;">
-                    <div style="font-weight:700; color:#FF9500; margin-bottom:10px;">🥾 Expulser (Kick)</div>
-                    <textarea id="kickReason_${userId}" placeholder="Raison du kick..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
-                    <button onclick="adminKick('${userId}', '${escapedPseudo}')" style="margin-top:8px; padding:8px 18px; background:#FF9500; color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Expulser du site</button>
                 </div>
 
                 <!-- BAN TEMPORAIRE -->

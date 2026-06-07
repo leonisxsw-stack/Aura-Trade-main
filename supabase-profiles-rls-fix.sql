@@ -10,9 +10,9 @@ DROP POLICY IF EXISTS "allow admins to update profiles" ON public.profiles;
 CREATE POLICY "allow admins to update profiles" 
     ON public.profiles FOR UPDATE TO anon, authenticated
     USING (
-        (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+        (SELECT is_admin FROM public.profiles WHERE id = auth.uid()::text) = true
         OR
-        (SELECT email FROM public.profiles WHERE id = auth.uid()) = 'leoazex20@gmail.com'
+        (SELECT email FROM public.profiles WHERE id = auth.uid()::text) = 'leoazex20@gmail.com'
     )
     WITH CHECK (true);
 
