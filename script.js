@@ -1363,6 +1363,7 @@ async function sendSupportChatMsg(playerId, playerPseudo) {
 // ==================== MODERATION MODAL ====================
 function openModerationModal(userId, pseudo, isBanned) {
     closeModal();
+    const escapedPseudo = escapeHtmlJsString(pseudo);
     const overlay = document.createElement('div');
     overlay.id = 'moderationModal';
     overlay.style.cssText = `
@@ -1385,14 +1386,14 @@ function openModerationModal(userId, pseudo, isBanned) {
                 <div style="background:rgba(255,214,10,0.07); border:1px solid rgba(255,214,10,0.2); border-radius:14px; padding:16px;">
                     <div style="font-weight:700; color:#FFD60A; margin-bottom:10px;">⚠️ Avertissement</div>
                     <textarea id="warnReason_${userId}" placeholder="Raison de l'avertissement..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
-                    <button onclick="adminWarn('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:#FFD60A; color:#000; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem; transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer l'avertissement</button>
+                    <button onclick="adminWarn('${userId}', '${escapedPseudo}')" style="margin-top:8px; padding:8px 18px; background:#FFD60A; color:#000; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem; transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer l'avertissement</button>
                 </div>
 
                 <!-- KICK -->
                 <div style="background:rgba(255,149,0,0.07); border:1px solid rgba(255,149,0,0.2); border-radius:14px; padding:16px;">
                     <div style="font-weight:700; color:#FF9500; margin-bottom:10px;">🥾 Expulser (Kick)</div>
                     <textarea id="kickReason_${userId}" placeholder="Raison du kick..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
-                    <button onclick="adminKick('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:#FF9500; color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Expulser du site</button>
+                    <button onclick="adminKick('${userId}', '${escapedPseudo}')" style="margin-top:8px; padding:8px 18px; background:#FF9500; color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Expulser du site</button>
                 </div>
 
                 <!-- BAN TEMPORAIRE -->
@@ -1408,14 +1409,14 @@ function openModerationModal(userId, pseudo, isBanned) {
                         </select>
                     </div>
                     <textarea id="tempbanReason_${userId}" placeholder="Raison du ban temporaire..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
-                    <button onclick="adminTempBan('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:var(--orange); color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Appliquer le ban temporaire</button>
+                    <button onclick="adminTempBan('${userId}', '${escapedPseudo}')" style="margin-top:8px; padding:8px 18px; background:var(--orange); color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Appliquer le ban temporaire</button>
                 </div>
 
                 <!-- BAN DÉFINITIF -->
                 <div style="background:rgba(255,69,58,0.07); border:1px solid rgba(255,69,58,0.3); border-radius:14px; padding:16px;">
                     <div style="font-weight:700; color:#FF453A; margin-bottom:10px;">🚫 Ban Définitif</div>
                     <textarea id="permbanReason_${userId}" placeholder="Raison du ban définitif..." rows="2" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:10px; font-family:inherit; font-size:0.9rem; outline:none; resize:none; box-sizing:border-box;"></textarea>
-                    <button onclick="adminPermBan('${userId}', '${pseudo}')" style="margin-top:8px; padding:8px 18px; background:#FF453A; color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Bannir définitivement</button>
+                    <button onclick="adminPermBan('${userId}', '${escapedPseudo}')" style="margin-top:8px; padding:8px 18px; background:#FF453A; color:#fff; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem;">Bannir définitivement</button>
                 </div>
 
                 ${isBanned ? `
@@ -1443,6 +1444,7 @@ async function adminWarn(userId, pseudo) {
         await logStaffAction('AVERTISSEMENT', userId, `A averti ${pseudo} : "${reason}"`);
         showToast('⚠️ Avertissement envoyé à ' + pseudo);
         closeModal();
+        adminShowUsers();
     } catch(e) { showToast('❌ Erreur : ' + e.message); }
 }
 
@@ -1458,6 +1460,7 @@ async function adminKick(userId, pseudo) {
         await logStaffAction('KICK', userId, `A expulsé ${pseudo} : "${reason}"`);
         showToast('🥾 ' + pseudo + ' a été expulsé.');
         closeModal();
+        adminShowUsers();
     } catch(e) { showToast('❌ Erreur : ' + e.message); }
 }
 
@@ -2774,6 +2777,8 @@ async function sendChatMsg(otherId) {
 function closeModal() {
     const m = document.getElementById('activeModal');
     if (m) m.remove();
+    const mod = document.getElementById('moderationModal');
+    if (mod) mod.remove();
 }
 
 // ==================== ACTIONS ====================
@@ -2815,8 +2820,9 @@ function openPseudoSetupModal() {
             <label>Ton Pseudo</label>
             <input type="text" id="setupPseudo" placeholder="Ex: MasterTrader_99">
         </div>
-        <div class="modal-actions">
-            <button class="btn btn-primary btn-block" onclick="saveInitialPseudo()">Commencer l'aventure</button>
+        <div class="modal-actions" style="display:flex; gap:10px; margin-top:16px;">
+            <button class="btn btn-secondary" onclick="AuraAuth.logOut()" style="flex:1;">Quitter</button>
+            <button class="btn btn-primary" onclick="saveInitialPseudo()" style="flex:2;">Commencer l'aventure</button>
         </div>
     </div>`;
     document.body.appendChild(overlay);
