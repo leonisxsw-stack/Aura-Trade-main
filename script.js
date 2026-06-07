@@ -1496,15 +1496,32 @@ async function adminWarn(userId, pseudo) {
     const reason = document.getElementById(`warnReason_${userId}`)?.value?.trim();
     if (!reason) return showToast('⚠️ Écris une raison pour l\'avertissement.');
     try {
-        const { error } = await AuraAuth._supabase.from('profiles').update({
-            pending_warning: JSON.stringify({ reason, date: new Date().toISOString() })
-        }).eq('id', userId);
+        const warningData = JSON.stringify({ reason, date: new Date().toISOString() });
+        const { data, error } = await AuraAuth._supabase.from('profiles').update({
+            pending_warning: warningData
+        }).eq('id', userId).select();
         if (error) throw error;
+        if (!data || data.length === 0) {
+            console.error('[adminWarn] UPDATE a retourné 0 lignes. userId:', userId, 'GRANT ou RLS manquant.');
+            showToast('❌ Échec : la base de données a refusé la modification. Vérifie les permissions SQL (GRANT + RLS).');
+            return;
+        }
+        // Vérifier que la valeur a bien été écrite
+        const { data: check } = await AuraAuth._supabase.from('profiles').select('pending_warning').eq('id', userId).single();
+        if (!check?.pending_warning) {
+            console.error('[adminWarn] Vérification échouée : pending_warning est toujours null après update');
+            showToast('❌ Échec : l\'avertissement n\'a pas été enregistré en base.');
+            return;
+        }
+        console.log('[adminWarn] ✅ pending_warning écrit avec succès pour', userId);
         await logStaffAction('AVERTISSEMENT', userId, `A averti ${pseudo} : "${reason}"`);
         showToast('⚠️ Avertissement envoyé à ' + pseudo);
         closeModal();
         adminShowUsers();
-    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+    } catch(e) {
+        console.error('[adminWarn] Erreur:', e);
+        showToast('❌ Erreur : ' + e.message);
+    }
 }
 
 async function adminKick(userId, pseudo) {
@@ -1596,16 +1613,23 @@ async function checkCurrentUserSanctions() {
     if (currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com') return;
 
     try {
-        const { data } = await AuraAuth._supabase
+        const { data, error: fetchError } = await AuraAuth._supabase
             .from('profiles')
             .select('banned, banned_until, ban_reason, kick_token, pending_kick, pending_warning')
             .eq('id', currentUser.id)
             .single();
 
+        if (fetchError) {
+            console.error('[SanctionCheck] Erreur fetch:', fetchError);
+            return;
+        }
         if (!data) return;
+        
+        console.log('[SanctionCheck] Données reçues:', JSON.stringify({ pending_warning: data.pending_warning, banned: data.banned }));
 
         // ---- AVERTISSEMENT ----
         if (data.pending_warning) {
+            console.log('[SanctionCheck] ⚠️ Avertissement détecté !');
             let warn = data.pending_warning;
             if (typeof warn === 'string') {
                 try {
