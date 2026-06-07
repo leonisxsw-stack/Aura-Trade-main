@@ -1879,3 +1879,13 @@ body {
 .admin-search-input:focus {
     border-color: var(--orange);
 }
+
+@media (max-width: 768px) {
+    .admin-players-col {
+        border-left: none !important;
+        padding-left: 0 !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 24px;
+        margin-top: 16px;
+    }
+}

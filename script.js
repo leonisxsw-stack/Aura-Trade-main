@@ -1265,18 +1265,25 @@ async function adminShowUsers() {
     };
 
     view.innerHTML = `
-        <div style="max-height:600px;overflow-y:auto; padding-right:8px;">
-            <div style="margin-bottom:24px;">
-                <h4 style="font-size:1.1rem; color:var(--orange); font-weight:800; margin-bottom:12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px;">
+        <div style="display: flex; gap: 32px; flex-wrap: wrap; margin-top: 12px; align-items: start;">
+            <!-- STAFF COLUMN -->
+            <div style="flex: 1; min-width: 320px;">
+                <h4 style="font-size:1.15rem; color:#5AC8FA; font-weight:900; margin-bottom:16px; display:flex; align-items:center; gap:8px; border-bottom:2px solid rgba(90, 200, 250, 0.2); padding-bottom:10px;">
                     🛡️ Staff (${staffUsers.length})
                 </h4>
-                ${staffUsers.length === 0 ? '<p style="color:var(--white-30); font-size:0.9rem;">Aucun membre du staff.</p>' : staffUsers.map(renderRow).join('')}
+                <div style="max-height:600px; overflow-y:auto; padding-right:8px; display:flex; flex-direction:column; gap:10px;">
+                    ${staffUsers.length === 0 ? '<p style="color:var(--white-30); font-size:0.9rem; font-style:italic;">Aucun membre du staff.</p>' : staffUsers.map(renderRow).join('')}
+                </div>
             </div>
-            <div>
-                <h4 style="font-size:1.1rem; color:#fff; font-weight:800; margin-bottom:12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px;">
+
+            <!-- PLAYERS COLUMN -->
+            <div class="admin-players-col" style="flex: 1.2; min-width: 320px; border-left: 1px solid rgba(255,255,255,0.08); padding-left: 32px;">
+                <h4 style="font-size:1.15rem; color:#fff; font-weight:900; margin-bottom:16px; display:flex; align-items:center; gap:8px; border-bottom:2px solid rgba(255, 255, 255, 0.1); padding-bottom:10px;">
                     👥 Joueurs (${playerUsers.length})
                 </h4>
-                ${playerUsers.length === 0 ? '<p style="color:var(--white-30); font-size:0.9rem;">Aucun joueur.</p>' : playerUsers.map(renderRow).join('')}
+                <div style="max-height:600px; overflow-y:auto; padding-right:8px; display:flex; flex-direction:column; gap:10px;">
+                    ${playerUsers.length === 0 ? '<p style="color:var(--white-30); font-size:0.9rem; font-style:italic;">Aucun joueur.</p>' : playerUsers.map(renderRow).join('')}
+                </div>
             </div>
         </div>
     `;
