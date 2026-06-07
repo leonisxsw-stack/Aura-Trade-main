@@ -1438,9 +1438,10 @@ async function adminWarn(userId, pseudo) {
     const reason = document.getElementById(`warnReason_${userId}`)?.value?.trim();
     if (!reason) return showToast('⚠️ Écris une raison pour l\'avertissement.');
     try {
-        await AuraAuth._supabase.from('profiles').update({
+        const { error } = await AuraAuth._supabase.from('profiles').update({
             pending_warning: JSON.stringify({ reason, date: new Date().toISOString() })
         }).eq('id', userId);
+        if (error) throw error;
         await logStaffAction('AVERTISSEMENT', userId, `A averti ${pseudo} : "${reason}"`);
         showToast('⚠️ Avertissement envoyé à ' + pseudo);
         closeModal();
@@ -1453,10 +1454,11 @@ async function adminKick(userId, pseudo) {
     if (!reason) return showToast('⚠️ Écris une raison pour le kick.');
     try {
         const kickToken = Date.now().toString();
-        await AuraAuth._supabase.from('profiles').update({
+        const { error } = await AuraAuth._supabase.from('profiles').update({
             kick_token: kickToken,
             pending_kick: JSON.stringify({ reason, date: new Date().toISOString() })
         }).eq('id', userId);
+        if (error) throw error;
         await logStaffAction('KICK', userId, `A expulsé ${pseudo} : "${reason}"`);
         showToast('🥾 ' + pseudo + ' a été expulsé.');
         closeModal();
@@ -1471,11 +1473,12 @@ async function adminTempBan(userId, pseudo) {
     const bannedUntil = new Date(Date.now() + hours * 3600000).toISOString();
     const label = hours < 24 ? `${hours}h` : hours < 168 ? `${hours/24}j` : hours < 720 ? `${Math.round(hours/168)} semaine(s)` : '30 jours';
     try {
-        await AuraAuth._supabase.from('profiles').update({
+        const { error } = await AuraAuth._supabase.from('profiles').update({
             banned: true,
             banned_until: bannedUntil,
             ban_reason: reason
         }).eq('id', userId);
+        if (error) throw error;
         await logStaffAction('BAN_TEMPORAIRE', userId, `A banni temporairement ${pseudo} pour ${label} : "${reason}"`);
         showToast(`⏳ ${pseudo} banni pour ${label}.`);
         closeModal();
@@ -1488,11 +1491,12 @@ async function adminPermBan(userId, pseudo) {
     if (!reason) return showToast('⚠️ Écris une raison pour le ban définitif.');
     if (!confirm(`Bannir définitivement ${pseudo} ?\nRaison : ${reason}`)) return;
     try {
-        await AuraAuth._supabase.from('profiles').update({
+        const { error } = await AuraAuth._supabase.from('profiles').update({
             banned: true,
             banned_until: null,
             ban_reason: reason
         }).eq('id', userId);
+        if (error) throw error;
         await logStaffAction('BAN_DEFINITIF', userId, `A banni définitivement ${pseudo} : "${reason}"`);
         showToast('🚫 ' + pseudo + ' banni définitivement.');
         closeModal();
@@ -1509,7 +1513,8 @@ async function adminUnban(userId) {
     try {
         const { data: user } = await AuraAuth._supabase.from('profiles').select('pseudo, email').eq('id', userId).single();
         const ident = user ? `${user.pseudo || 'Sans pseudo'}` : `ID: ${userId}`;
-        await AuraAuth._supabase.from('profiles').update({ banned: false, banned_until: null, ban_reason: null }).eq('id', userId);
+        const { error } = await AuraAuth._supabase.from('profiles').update({ banned: false, banned_until: null, ban_reason: null }).eq('id', userId);
+        if (error) throw error;
         showToast('✅ ' + ident + ' débanni.');
         await logStaffAction('DEBANNIR_UTILISATEUR', userId, `A débanni l'utilisateur : ${ident}`);
         closeModal();
