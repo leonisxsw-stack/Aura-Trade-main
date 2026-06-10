@@ -1087,19 +1087,6 @@ async function adminShowUsers() {
                 <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                     <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}')">✏️ Pseudo</button>
                     <button class="btn btn-secondary btn-sm" style="background:rgba(255,149,0,0.15); border:1px solid rgba(255,149,0,0.3); color:#FF9500;" onclick="adminManageBadges('${u.id}')">🏷️ Badges</button>
-                    ${u.is_premium
-                        ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminRevokePremium('${u.id}')">⭐ -Premium</button>`
-                        : `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminGrantPremium('${u.id}')">⭐ +Premium</button>`}
-                    ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
-                        u.is_admin
-                            ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminRevokeAdmin('${u.id}')">👑 -Admin</button>`
-                            : `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminGrantAdmin('${u.id}')">👑 +Admin</button>`
-                    ) : ''}
-                    ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
-                        u.can_view_logs
-                            ? `<button class="btn btn-ghost btn-sm" style="color:#30D158;" onclick="adminToggleLogsPermission('${u.id}', false)">📜 Voir Logs ✅</button>`
-                            : `<button class="btn btn-ghost btn-sm" style="color:var(--white-50);" onclick="adminToggleLogsPermission('${u.id}', true)">📜 Voir Logs ❌</button>`
-                    ) : ''}
                     <button class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;" onclick="openSupportChat('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}')">
                         ✉️ Message
                         ${unreadSupportCount > 0 ? `<span style="background:white; color:var(--orange); font-size:0.7rem; font-weight:800; min-width:16px; height:16px; padding:0 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadSupportCount}</span>` : ''}
