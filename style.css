@@ -356,19 +356,24 @@ body {
     font-size: 0.9rem;
     cursor: pointer;
     background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
+    /* Décomposé pour éviter que border: écrase border-bottom: */
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
     color: rgba(255,255,255,0.55);
     transition: all 0.2s;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
-    border-bottom: none; /* override old underline style */
 }
 .admin-tab:hover { color: var(--white-90); background: rgba(255,255,255,0.08); }
 .admin-tab.active {
     background: rgba(255,107,43,0.15);
-    border-color: rgba(255,107,43,0.4);
+    border-top-color: rgba(255,107,43,0.4);
+    border-left-color: rgba(255,107,43,0.4);
+    border-right-color: rgba(255,107,43,0.4);
+    border-bottom-color: rgba(255,107,43,0.4);
     color: #FF6B2B;
-    border-bottom: none;
 }
 
 /* View content */
