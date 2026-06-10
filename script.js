@@ -1047,16 +1047,20 @@ async function unlinkDiscord() {
 async function logStaffAction(action, targetId, details) {
     if (!AuraAuth._supabase || !currentUser || currentUser.id === 'guest') return;
     try {
-        await AuraAuth._supabase.from('staff_logs').insert({
+        const { error } = await AuraAuth._supabase.from('staff_logs').insert({
             staff_id: currentUser.id,
             staff_pseudo: currentUser.pseudo || currentUser.email || 'Staff',
             action: action,
             target_id: targetId || null,
             details: details
         });
+        if (error) {
+            console.error('[Staff Log] ERREUR INSERT:', JSON.stringify(error));
+            return;
+        }
         console.log(`[Staff Log] Action logged: ${action} - ${details}`);
     } catch (e) {
-        console.error('Failed to save staff log:', e);
+        console.error('[Staff Log] EXCEPTION:', e.message, e);
     }
 }
 
