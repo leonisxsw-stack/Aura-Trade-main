@@ -1231,37 +1231,49 @@ async function adminShowUsers() {
         }
 
         return `
-                <div class="admin-user-row" data-searchable="${searchData}" style="padding:14px; background:rgba(255,255,255,0.02); border:1px solid var(--border-light); border-radius:var(--radius-md); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; transition:var(--transition);">
-                    <div style="flex:1; min-width:200px;">
-                        <strong style="color:var(--white); display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px; font-size:1.05rem;">
-                            ${u.pseudo || 'Sans pseudo'}
-                            ${renderUserBadges(u)}
-                            ${sanctionBadge}
-                        </strong>
-                        <div style="font-size:0.75rem;color:var(--white-50); margin-top:4px; font-family:monospace; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px; display:inline-block;">ID: ${u.id}</div>
-                        <div style="font-size:0.8rem;color:var(--white-70); margin-top:4px;">${u.email === 'leoazex20@gmail.com' ? 'Email masqué' : (u.email || 'Email masqué')}</div>
-                    </div>
-                    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                        <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}')">✏️ Pseudo</button>
-                        <button class="btn btn-secondary btn-sm" style="background:rgba(255,149,0,0.15); border:1px solid rgba(255,149,0,0.3); color:#FF9500;" onclick="adminManageBadges('${u.id}')">🏷️ Badges</button>
-                        ${u.is_premium ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminRevokePremium('${u.id}')">⭐ -Premium</button>`
-                : `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminGrantPremium('${u.id}')">⭐ +Premium</button>`}
-                        ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
-                u.is_admin ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminRevokeAdmin('${u.id}')">👑 -Admin</button>`
-                    : `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminGrantAdmin('${u.id}')">👑 +Admin</button>`
-            ) : ''}
-                        ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
-                u.can_view_logs ? `<button class="btn btn-ghost btn-sm" style="color:#30D158;" onclick="adminToggleLogsPermission('${u.id}', false)">📜 Voir Logs ✅</button>`
-                    : `<button class="btn btn-ghost btn-sm" style="color:var(--white-50);" onclick="adminToggleLogsPermission('${u.id}', true)">📜 Voir Logs ❌</button>`
-            ) : ''}
-                        <button class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;" onclick="openSupportChat('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}')">
-                            ✉️ Message
-                            ${unreadSupportCount > 0 ? `<span style="background:white; color:var(--orange); font-size:0.7rem; font-weight:800; min-width:16px; height:16px; padding:0 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadSupportCount}</span>` : ''}
-                        </button>
-                        <button class="btn btn-ghost btn-sm" style="color:#FF453A; background:rgba(255,69,58,0.12); border:1px solid rgba(255,69,58,0.2); font-weight:700;" onclick="openModerationModal('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}', ${u.banned ? 'true' : 'false'})">🔨 Modérer</button>
-                    </div>
+            <div class="admin-user-row" data-searchable="${searchData}" style="padding:14px; background:rgba(255,255,255,0.02); border:1px solid var(--border-light); border-radius:var(--radius-md); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; transition:var(--transition);">
+                <div style="flex:1; min-width:200px;">
+                    <strong style="color:var(--white); display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px; font-size:1.05rem;">
+                        ${u.pseudo || 'Sans pseudo'}
+                        ${renderUserBadges(u)}
+                        ${sanctionBadge}
+                    </strong>
+                    <div style="font-size:0.75rem;color:var(--white-50); margin-top:4px; font-family:monospace; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px; display:inline-block;">ID: ${u.id}</div>
+                    <div style="font-size:0.8rem;color:var(--white-70); margin-top:4px;">${u.email === 'leoazex20@gmail.com' ? 'Email masqué' : (u.email || 'Email masqué')}</div>
+                    ${u.banned ? `
+                    <div style="font-size:0.75rem; margin-top:6px; background:rgba(255,69,58,0.08); border:1px solid rgba(255,69,58,0.2); border-radius:6px; padding:5px 10px; display:inline-flex; flex-direction:column; gap:2px;">
+                        <span style="color:#FF453A; font-weight:700;">🚫 ${u.banned_until ? '⏳ Ban temporaire jusqu\'au ' + new Date(u.banned_until).toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Ban définitif'}</span>
+                        ${u.ban_reason ? `<span style="color:var(--white-50);">Raison : ${u.ban_reason}</span>` : ''}
+                    </div>` : ''}
+                    ${u.pending_warning ? `
+                    <div style="font-size:0.75rem; margin-top:6px; background:rgba(255,214,10,0.08); border:1px solid rgba(255,214,10,0.2); border-radius:6px; padding:5px 10px; display:inline-flex; align-items:center; gap:6px;">
+                        <span style="color:#FFD60A; font-weight:700;">⚠️ Avertissement en attente de lecture</span>
+                    </div>` : ''}
                 </div>
-            `;
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <button class="btn btn-secondary btn-sm" onclick="adminEditPseudo('${u.id}')">✏️ Pseudo</button>
+                    <button class="btn btn-secondary btn-sm" style="background:rgba(255,149,0,0.15); border:1px solid rgba(255,149,0,0.3); color:#FF9500;" onclick="adminManageBadges('${u.id}')">🏷️ Badges</button>
+                    ${u.is_premium
+                        ? `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminRevokePremium('${u.id}')">⭐ -Premium</button>`
+                        : `<button class="btn btn-ghost btn-sm" style="color:#FFD700; background:rgba(255,215,0,0.05);" onclick="adminGrantPremium('${u.id}')">⭐ +Premium</button>`}
+                    ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
+                        u.is_admin
+                            ? `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminRevokeAdmin('${u.id}')">👑 -Admin</button>`
+                            : `<button class="btn btn-ghost btn-sm" style="color:var(--orange); background:rgba(255,107,43,0.05);" onclick="adminGrantAdmin('${u.id}')">👑 +Admin</button>`
+                    ) : ''}
+                    ${currentUser.is_admin || currentUser.email === 'leoazex20@gmail.com' ? (
+                        u.can_view_logs
+                            ? `<button class="btn btn-ghost btn-sm" style="color:#30D158;" onclick="adminToggleLogsPermission('${u.id}', false)">📜 Voir Logs ✅</button>`
+                            : `<button class="btn btn-ghost btn-sm" style="color:var(--white-50);" onclick="adminToggleLogsPermission('${u.id}', true)">📜 Voir Logs ❌</button>`
+                    ) : ''}
+                    <button class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px;" onclick="openSupportChat('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}')">
+                        ✉️ Message
+                        ${unreadSupportCount > 0 ? `<span style="background:white; color:var(--orange); font-size:0.7rem; font-weight:800; min-width:16px; height:16px; padding:0 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${unreadSupportCount}</span>` : ''}
+                    </button>
+                    <button class="btn btn-ghost btn-sm" style="color:#FF453A; background:rgba(255,69,58,0.12); border:1px solid rgba(255,69,58,0.2); font-weight:700;" onclick="openModerationModal('${u.id}', '${escapeHtmlJsString(u.pseudo || 'Sans pseudo')}', ${u.banned ? 'true' : 'false'})">🔨 Modérer</button>
+                </div>
+            </div>
+        `;
     };
 
     view.innerHTML = `
