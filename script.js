@@ -2000,9 +2000,13 @@ async function adminShowLogs() {
                                 </div>
                                 <span style="font-size:0.75rem; color:var(--white-30); background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:var(--radius-md);">${dateStr}</span>
                             </div>
-                            <div style="font-size:0.88rem; color:var(--white-70); line-height:1.5;">
-                                ${log.details}
-                            </div>
+                        <div style="font-size:0.88rem; color:var(--white-70); line-height:1.5;">
+                            ${log.details}
+                        </div>
+                        ${currentUser.email === 'leoazex20@gmail.com' ? `
+                        <div style="margin-top:8px; text-align:right;">
+                            <button onclick="deleteStaffLog(${log.id})" style="background:rgba(255,69,58,0.1); border:1px solid rgba(255,69,58,0.3); color:#FF453A; font-size:0.72rem; font-weight:700; padding:3px 10px; border-radius:8px; cursor:pointer;">🗑️ Supprimer</button>
+                        </div>` : ''}
                         </div>
                     `;
                 }).join('')}
@@ -2012,6 +2016,15 @@ async function adminShowLogs() {
         console.error('Failed to load staff logs:', err);
         view.innerHTML = `<p style="color:var(--danger); padding:10px;">Erreur lors du chargement des logs : ${err.message}</p>`;
     }
+}
+
+async function deleteStaffLog(logId) {
+    if (currentUser.email !== 'leoazex20@gmail.com') return;
+    if (!confirm('Supprimer ce log ?')) return;
+    const { error } = await AuraAuth._supabase.from('staff_logs').delete().eq('id', logId);
+    if (error) return showToast('❌ Erreur : ' + error.message);
+    showToast('🗑️ Log supprimé.');
+    adminShowLogs();
 }
 
 async function adminDeleteAnnounce(id) {
