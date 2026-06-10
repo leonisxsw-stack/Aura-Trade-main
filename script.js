@@ -1150,7 +1150,6 @@ async function adminShowUnban() {
             <div style="text-align:center; padding:50px 0;">
                 <div style="font-size:3.5rem; margin-bottom:14px;">✅</div>
                 <p style="color:var(--white-70); font-size:1rem; font-weight:600;">Aucun utilisateur banni pour le moment.</p>
-                <p style="color:var(--white-30); font-size:0.82rem; margin-top:6px;">La liste se rafraîchit automatiquement toutes les 5 secondes.</p>
             </div>`;
         return;
     }
