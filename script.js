@@ -1506,7 +1506,6 @@ async function adminWarn(userId, pseudo) {
             showToast('❌ Échec : la base de données a refusé la modification. Vérifie les permissions SQL (GRANT + RLS).');
             return;
         }
-        // Vérifier que la valeur a bien été écrite
         const { data: check } = await AuraAuth._supabase.from('profiles').select('pending_warning').eq('id', userId).single();
         if (!check?.pending_warning) {
             console.error('[adminWarn] Vérification échouée : pending_warning est toujours null après update');
@@ -1529,16 +1528,24 @@ async function adminKick(userId, pseudo) {
     if (!reason) return showToast('⚠️ Écris une raison pour le kick.');
     try {
         const kickToken = Date.now().toString();
-        const { error } = await AuraAuth._supabase.from('profiles').update({
+        const { data, error } = await AuraAuth._supabase.from('profiles').update({
             kick_token: kickToken,
             pending_kick: JSON.stringify({ reason, date: new Date().toISOString() })
-        }).eq('id', userId);
+        }).eq('id', userId).select();
         if (error) throw error;
+        if (!data || data.length === 0) {
+            console.error('[adminKick] UPDATE a retourné 0 lignes. userId:', userId);
+            showToast('❌ Échec : le kick n\'a pas pu être appliqué. Vérifie les permissions SQL.');
+            return;
+        }
         await logStaffAction('KICK', userId, `A expulsé ${pseudo} : "${reason}"`);
         showToast('🥾 ' + pseudo + ' a été expulsé.');
         closeModal();
         adminShowUsers();
-    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+    } catch(e) {
+        console.error('[adminKick] Erreur:', e);
+        showToast('❌ Erreur : ' + e.message);
+    }
 }
 
 async function adminTempBan(userId, pseudo) {
@@ -1546,19 +1553,35 @@ async function adminTempBan(userId, pseudo) {
     const reason = document.getElementById(`tempbanReason_${userId}`)?.value?.trim();
     if (!reason) return showToast('⚠️ Écris une raison pour le ban temporaire.');
     const bannedUntil = new Date(Date.now() + hours * 3600000).toISOString();
-    const label = hours < 24 ? `${hours}h` : hours < 168 ? `${hours/24}j` : hours < 720 ? `${Math.round(hours/168)} semaine(s)` : '30 jours';
+    const label = hours < 24 ? `${hours}h` : hours < 168 ? `${hours / 24}j` : hours < 720 ? `${Math.round(hours / 168)} semaine(s)` : '30 jours';
     try {
-        const { error } = await AuraAuth._supabase.from('profiles').update({
+        const { data, error } = await AuraAuth._supabase.from('profiles').update({
             banned: true,
             banned_until: bannedUntil,
             ban_reason: reason
-        }).eq('id', userId);
+        }).eq('id', userId).select();
         if (error) throw error;
+        if (!data || data.length === 0) {
+            console.error('[adminTempBan] UPDATE a retourné 0 lignes. userId:', userId);
+            showToast('❌ Échec : le ban temporaire n\'a pas pu être appliqué. Vérifie les permissions SQL (GRANT + RLS).');
+            return;
+        }
+        // Vérification post-update
+        const { data: check } = await AuraAuth._supabase.from('profiles').select('banned, banned_until').eq('id', userId).single();
+        if (!check?.banned || !check?.banned_until) {
+            console.error('[adminTempBan] Vérification échouée : banned/banned_until non écrits pour', userId);
+            showToast('❌ Échec : le ban temporaire n\'a pas été enregistré en base.');
+            return;
+        }
+        console.log('[adminTempBan] ✅ Ban temporaire appliqué pour', userId, 'jusqu\'au', bannedUntil);
         await logStaffAction('BAN_TEMPORAIRE', userId, `A banni temporairement ${pseudo} pour ${label} : "${reason}"`);
         showToast(`⏳ ${pseudo} banni pour ${label}.`);
         closeModal();
         adminShowUsers();
-    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+    } catch(e) {
+        console.error('[adminTempBan] Erreur:', e);
+        showToast('❌ Erreur : ' + e.message);
+    }
 }
 
 async function adminPermBan(userId, pseudo) {
@@ -1566,17 +1589,33 @@ async function adminPermBan(userId, pseudo) {
     if (!reason) return showToast('⚠️ Écris une raison pour le ban définitif.');
     if (!confirm(`Bannir définitivement ${pseudo} ?\nRaison : ${reason}`)) return;
     try {
-        const { error } = await AuraAuth._supabase.from('profiles').update({
+        const { data, error } = await AuraAuth._supabase.from('profiles').update({
             banned: true,
             banned_until: null,
             ban_reason: reason
-        }).eq('id', userId);
+        }).eq('id', userId).select();
         if (error) throw error;
+        if (!data || data.length === 0) {
+            console.error('[adminPermBan] UPDATE a retourné 0 lignes. userId:', userId);
+            showToast('❌ Échec : le ban définitif n\'a pas pu être appliqué. Vérifie les permissions SQL (GRANT + RLS).');
+            return;
+        }
+        // Vérification post-update
+        const { data: check } = await AuraAuth._supabase.from('profiles').select('banned, ban_reason').eq('id', userId).single();
+        if (!check?.banned) {
+            console.error('[adminPermBan] Vérification échouée : banned non écrit pour', userId);
+            showToast('❌ Échec : le ban définitif n\'a pas été enregistré en base.');
+            return;
+        }
+        console.log('[adminPermBan] ✅ Ban définitif appliqué pour', userId);
         await logStaffAction('BAN_DEFINITIF', userId, `A banni définitivement ${pseudo} : "${reason}"`);
         showToast('🚫 ' + pseudo + ' banni définitivement.');
         closeModal();
         adminShowUsers();
-    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+    } catch(e) {
+        console.error('[adminPermBan] Erreur:', e);
+        showToast('❌ Erreur : ' + e.message);
+    }
 }
 
 async function adminBan(userId) {
@@ -1588,13 +1627,25 @@ async function adminUnban(userId) {
     try {
         const { data: user } = await AuraAuth._supabase.from('profiles').select('pseudo, email').eq('id', userId).single();
         const ident = user ? `${user.pseudo || 'Sans pseudo'}` : `ID: ${userId}`;
-        const { error } = await AuraAuth._supabase.from('profiles').update({ banned: false, banned_until: null, ban_reason: null }).eq('id', userId);
+        const { data, error } = await AuraAuth._supabase.from('profiles').update({
+            banned: false,
+            banned_until: null,
+            ban_reason: null
+        }).eq('id', userId).select();
         if (error) throw error;
+        if (!data || data.length === 0) {
+            console.error('[adminUnban] UPDATE a retourné 0 lignes. userId:', userId);
+            showToast('❌ Échec : le déban n\'a pas pu être appliqué. Vérifie les permissions SQL.');
+            return;
+        }
         showToast('✅ ' + ident + ' débanni.');
         await logStaffAction('DEBANNIR_UTILISATEUR', userId, `A débanni l'utilisateur : ${ident}`);
         closeModal();
         adminShowUsers();
-    } catch(e) { showToast('❌ Erreur : ' + e.message); }
+    } catch(e) {
+        console.error('[adminUnban] Erreur:', e);
+        showToast('❌ Erreur : ' + e.message);
+    }
 }
 
 // ==================== REAL-TIME SANCTION CHECK ====================
